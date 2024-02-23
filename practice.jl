@@ -8,16 +8,22 @@ theta = [1 1 1;
 dXdt = [2.1; 6.1; 11.9] # x^2 + x w/ added noise
 
 lambda = 0.2 # sparcification parameter
-n = 3
+n = 1
 Xi = theta \ dXdt
-
+println("before: ", Xi)
 for k in 1:10
-    smallinds = findall(<(lambda), Xi) #array of indicies with small coefficients
+    biginds = []
+    smallinds = findall(<(lambda), abs.(Xi)) #array of indicies with small coefficients
     Xi[smallinds] .= 0
-    for j in 1:n
-        biginds = findall(~smallinds[:, j], smallinds)
-        Xi[biginds, j] = theta[:, biginds] \ dXdt[:, ind]
+    for ind in 1:n
+        for i in 1:size(Xi)[1]
+            if i ∉ smallinds
+                append!(biginds, i)
+            end
+        end
+        # biginds = findall(~smallinds[:, j], smallinds)
+        Xi[biginds, ind] = theta[:, biginds] \ dXdt[:, ind]
     end
 end
 
-print(Xi)
+print("after: ", Xi)
