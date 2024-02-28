@@ -13,16 +13,10 @@ n = 1
 Xi = theta \ dXdt
 println("before: ", Xi)
 for k in 1:10
-    biginds = []
     smallinds = findall(<(lambda), abs.(Xi)) #array of indicies with small coefficients
     Xi[smallinds] .= 0
     for ind in 1:n
-        for i in 1:size(Xi)[1]
-            if i ∉ smallinds
-                append!(biginds, i)
-            end
-        end
-        # biginds = findall(~smallinds[:, j], smallinds)
+        biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
         Xi[biginds, ind] = theta[:, biginds] \ dXdt[:, ind]
     end
 end
