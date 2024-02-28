@@ -3,9 +3,10 @@
 # x,x^2,x^3
 theta = [1 1 1;
     2 4 8;
-    3 9 27]
+    3 9 27;
+    4 16 64]
 
-dXdt = [2.1; 6.1; 11.9] # x^2 + x w/ added noise
+dXdt = [2.3; 6.1; 11.7; 20] # x^2 + x w/ added noise
 
 lambda = 0.2 # sparcification parameter
 n = 1
