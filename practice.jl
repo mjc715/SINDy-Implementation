@@ -27,3 +27,5 @@ for k in 1:10
 end
 
 print("after: ", Xi)
+
+# test
