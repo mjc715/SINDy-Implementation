@@ -1,44 +1,46 @@
 # Sparse representation algorithm
-
-# x,x^2,x^3
-theta = [
-    1 1 1;
-    2 4 8;
-    3 9 27;
-    4 16 64
-]
-
-dXdt = [2.3; 6.1; 11.7; 20] # x^2 + x w/ added noise
-
-lambda = 0.2 # sparcification parameter
-Xi = theta \ dXdt
-println("before: ", Xi)
-
-for k in 1:10
-    smallinds = findall(<(lambda), abs.(Xi)) #array of indicies with small coefficients
-    Xi[smallinds] .= 0
-    biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-
-    Xi[biginds] = theta[:, biginds] \ dXdt
-end
-
-print("after: ", Xi)
-
 #####################################
 
 f1(x) = x
 f2(x) = x^2
 f3(x) = x^3
+f4(y) = y
 
-library = [f1, f2, f3]
+library = [f1 f2 f3]
+n = 10
+n_vars = 1
+data = [
+    0 1 2 3 4 5;
+    0 1 4 9 16 25
+] # t, dxdt
+lambda = 0.25
 
-data = [1.0, 2.0, 3.0, 4.0, 5.0]
+######################################
+function sparse_representation(library, data, lambda, n_iterations, n_vars)
+    theta = [library[i](x) for x in data[1, :], i = 1:length(library)]
+    # println(theta)
+    Xi = theta \ data[2, :]
+    # println("before: ", Xi)
 
-theta = [library[i](x) for x in data, i = 1:length(library)]
+    for k in 1:n_iterations
+        smallinds = findall(p -> (p < lambda && p > -lambda), Xi) #array of indicies with small coefficients
+        Xi[smallinds] .= 0
+        for ind in 1:n_vars
+            biginds = [i for i = 1:length(Xi[ind]) if !(i in smallinds)]
+            Xi[biginds] = theta[:, biginds] \ data[ind+1, :]
+        end
+    end
+    # println("after: ", Xi)
+    return Xi
+end
+######################################
 
-# library = vector of functions
-function sparse_representation(library, x_values, lambda, n_iterations)
-    ###
+results = sparse_representation(library, data, lambda, n, n_vars)
+
+for var in 1:n_vars
+    for i in 1:length(results[:, var])
+        println(String("$(results[i, var]) f$(i)"))
+    end
 end
 
 ### plan
