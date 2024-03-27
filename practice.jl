@@ -6,89 +6,81 @@ f2(x) = x^2
 f3(x) = x^3
 f4(y) = y
 
-library = [f1 f2 f3]
 n_iterations = 10
 n_vars = 1
+# data = [
+#     0 1 2 3 4 5 6 7 8 9 10;
+#     0 2 4 6 8 10 12 14 16 18 20
+# ] # x,2y
+
+########### Scalar Multivariable ####################
+# data = [
+#     0 3 16 45 96 175 288 441 640 891 1200 1573 2016 2535 3136 3825 4608 5491 6480 7581 8800
+# ] # xy + x^3 (x = t, y =  2t)
+# times = [i for i = 0:20]
+# row_1 = [1 for t in times]
+# row_x = [f1(t) for t in times]
+# row_y = [f4(2t) for t in times]
+# row_xy = [f1(t) * f4(2t) for t in times]
+# row_x3 = [f3(t) for t in times]
+# theta = [row_1;; row_x;; row_y;; row_xy;; row_x3]
+# lambda = 0.25
+# data = vec(permutedims(data)) # Vector of data, x then y
+# Xi = theta \ data
+# for k in 1:n_iterations
+#     smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
+#     # println(smallinds)
+#     Xi[smallinds] .= 0
+#     biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
+#     # println(biginds)
+#     Xi[biginds] = theta[:, biginds] \ data
+# end
+# println(Xi)
+#####################################################
+########### Vector Multivariable ####################
 data = [
-    0 1 2 3 4 5;
-    0 2 4 6 8 10
-] # x,y
+    0 3 16 45 96 175 288 441 640 891 1200;
+    3 5 11 21 35 53 75 101 131 165 203
+] # 1. xy + x^3, 2. xy + 3 (x = t, y = 2t)
 
-theta = [
-    1 1 1 1 1 1;
-    0 1 2 3 4 5;
-    0 2 4 6 8 10;
-    0 2 8 18 32 50;
-    0 1 4 9 16 25
-] # 1,x,y,xy,x^2,y^2
-theta = permutedims(theta)
+times = [[i for i = 0:10]; [i for i = 0:10]]
+row_1 = [1 for t in times]
+row_x = [f1(t) for t in times]
+row_y = [f4(2t) for t in times]
+row_xy = [f1(t) * f4(2t) for t in times]
+row_x3 = [f3(t) for t in times]
+
+theta = [row_1;; row_x;; row_y;; row_xy;; row_x3]
+
 lambda = 0.25
-data = permutedims(data)
-
-Xi = vec(theta \ data)
-for k in 1:n_iterations
-    smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
-    # println(smallinds)
-    Xi[smallinds] .= 0
-    biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-    col = []
-    # println(biginds)
-    for j in eachindex(biginds)
-        if biginds[j] <= 5
-            append!(col, 1)
-        else
-            append!(col, 2)
-        end
-    end
-    println(col)
-    helper = biginds .% 5
-    println(helper)
-    Xi[biginds] = theta[:, helper] \ data[:, col]
-end
-println(Xi)
-
-
-######################################
-function sparse_representation(library, data, lambda, n_iterations, n_vars)
-    # theta = [library[i](x) for x in data[1, :], i = 1:length(library)]
-    theta = [
-        1 1 1 1 1 1;
-        0 1 2 3 4 5;
-        0 2 4 6 8 10;
-        0 2 8 18 32 50;
-        0 1 4 9 16 25
-    ] # 1,x,y,xy,x^2,y^2
-    theta = permutedims(theta)
-    # println(theta)
-    Xi = vec(theta \ data)
-    # vec(theta)
-    # vec(data)
-    # println("before: ", Xi)
-
+data = vec(permutedims(data))
+data1 = data[1:11]
+data2 = data[12:22]
+theta1 = theta[1:11, :]
+theta2 = theta[12:22, :]
+datas = [[data1] [data2]]
+thetas = [[theta1] [theta2]]
+for l in 1:size(datas, 2)
+    Xi = thetas[l] \ datas[l]
     for k in 1:n_iterations
         smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
-        println(smallinds)
+        # println(smallinds)
         Xi[smallinds] .= 0
-        for ind in 1:n_vars
-            biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-            println(biginds)
-            Xi[biginds] = theta[:, biginds] \ data[ind, :]
-        end
+        biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
+        # println(biginds)
+        Xi[biginds] = thetas[l][:, biginds] \ datas[l]
     end
-    # println("after: ", Xi)
-    return Xi
+    println(l, ": ", Xi)
 end
+######################################################
+
+
+
 ###################################### make theta vector of matricies w/ each matrix like eq 4a
-
-# results = sparse_representation(library, data, lambda, n, n_vars)
-# println(results)
-# for var in 1:n_vars
-#     for i in 1:length(results[:, var])
-#         println(String("$(results[i, var]) f$(i)"))
-#     end
-# end
-
 ### plan
 # 1. write function for 1 variable case
 # 2. put ind back in to get multivariable case (vectorize)
 # 3. true SINDy
+
+# scalar multivariable case
+# vector multivariable (x1,x2,y1,y2 etc)
