@@ -1,9 +1,6 @@
 using DifferentialEquations
 using ForwardDiff
-
-f1(t) = t
-f2(t) = t^2
-f3(t) = t^3
+include("practice.jl")
 
 function f!(du, u, p, t)
     du[1] = 2t + t^2
@@ -12,45 +9,49 @@ end
 prob = ODEProblem(f!, [0.0], (0.0, 10.0))
 sol = solve(prob) # function you can evaluate, like sol(3.0)
 
-times = range(0.0, 1.0, length=10) |> collect
+t_final = 1.0
+times = range(0.0, t_final, length=100) |> collect
 data = [ForwardDiff.derivative(t -> sol(t)[1], ti) for ti in times]
 
-### multivariable, vector output
+## multivariable, vector output
 function f_vec!(du, u, p, t)
-    du[1] = 2u[1] - u[2]^2
+    du[1] = u[1] - u[2]^2
     du[2] = u[1] * u[2] + 3
 end
 
-prob_vec = ODEProblem(f_vec!, [0.0, 0.0], (0.0, 1.0))
+
+prob_vec = ODEProblem(f_vec!, [0.0, 0.0], (0.0, t_final))
 sol_vec = solve(prob_vec) # function you can evaluate, like sol(3.0)
 
+x(t) = sol_vec(t)[1]
+y(t) = sol_vec(t)[2]
+f0(t) = 1
+f1(t) = x(t)
+f2(t) = x(t)^2
+f3(t) = x(t)^3
+f4(t) = y(t)
+f6(t) = y(t)^2
+f5(t) = x(t) * y(t)
+f7(t) = exp(x(t))
+
 data = [ForwardDiff.derivative(t -> sol_vec(t), ti) for ti in times]
+# data1 = [f2(t) - f1(t) + 0.1 * rand() for t in times] # 1. x^2-x
+# data2 = [f7(t) - 3 + 0.1 * rand() for t in times]
+# data = [data1; data2] # 2. xy - 3 (x = t, y = sin(t))
+library = [f0, f1, f2, f4, f5, f6, f7]
+vars = 2
+data_transform = zeros(size(data[1])[1], size(data)[1])
 
-times = [times; times]
-
-n_iterations = 10
-row_1 = [1 for t in times]
-row_x = [f1(t) for t in times]
-row_y = [f1(2t) for t in times]
-row_xy = [f1(t) * f1(2t) for t in times]
-row_y2 = [f2(2t) for t in times]
-theta = [row_1;; row_x;; row_y;; row_xy;; row_y2]
-row3 = theta[1:10, :]
-row4 = theta[11:20, :]
-thetas = [[row3] [row4]]
-data1 = [data[i][1] for i in 1:length(data)]
-data2 = [data[i][2] for i in 1:length(data)]
-datas = [data1, data2]
-lambda = 0.25
-for l in 1:size(datas, 1)
-    Xi = thetas[l] \ datas[l]
-    for k in 1:n_iterations
-        smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
-        # println(smallinds)
-        Xi[smallinds] .= 0
-        biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-        # println(biginds)
-        Xi[biginds] = thetas[l][:, biginds] \ datas[l]
+for i in 1:size(data_transform)[1]
+    for j in 1:size(data_transform)[2]
+        data_transform[i, j] = data[j][i]
     end
-    println(l, ": ", Xi)
 end
+
+
+Xi = sparse_representation(library, data_transform, times, vars)
+
+# SINDy(prob_vec, library, lambda = 0.25, n_points = 100)
+# f(x) = x^2 -> x(t) = sol_vec(t)[1]
+# f_new(t) = f(x(t))
+# Also convert data -> prob_vec

@@ -4,9 +4,9 @@ f0(x) = 1
 f1(x) = x
 f2(x) = x^2
 f3(x) = x^3
-f4(y) = (2y)
-f5(y) = (2y^2)
-f6(y) = (2y^3)
+f4(y) = (sin(y))
+f5(y) = (sin(y^2))
+f6(y) = sin(y^3)
 f7(x) = f1(x) * f4(x)
 f8(x) = f1(x) * f5(x)
 f9(x) = f2(x) * f4(x)
@@ -15,19 +15,14 @@ f10(x) = f2(x) * f5(x)
 library = [f0, f1, f2, f4, f7]
 times = [i for i = 1:10]
 vars = 2
-data = [
-    0 2 6 12 20 30 42 56 72 90;
-    5 11 21 35 53 75 101 131 165 203
-] # 1. x^2-x
-# 2. xy + 3 (x = t, y = 2t)
+data1 = [f2(t) - f1(t) for t in times] # 1. x^2-x
+data2 = [f7(t) - 3 for t in times]
+data = [data1; data2] # 2. xy - 3 (x = t, y = sin(t))
+
 function sparse_representation(library, data, times, vars)
     helper = []
     n_iterations = 10
     lambda = 0.25
-
-    for i in 1:vars-1
-        times = [times; times]
-    end
 
     for f in library
         i = 1
@@ -52,105 +47,95 @@ function sparse_representation(library, data, times, vars)
     data = vec(permutedims(data))
     # print(data)
     data_arrays = []
-    theta_arrays = []
 
     if vars == 2
         midpoint = Integer(length(data) / 2)
         row1 = data[1:midpoint]
         row2 = data[midpoint+1:length(data)]
-        row3 = theta[1:midpoint, :]
-        row4 = theta[(midpoint+1:length(data)), :]
         data_arrays = [[row1] [row2]]
-        theta_arrays = [[row3] [row4]]
     elseif vars == 1
         data_arrays = data
-        theta_arrays = theta
     end
 
 
     for l in 1:vars
-        Xi = theta_arrays[l] \ data_arrays[l]
+        Xi = theta \ data_arrays[l]
         # print(Xi)
         for k in 1:n_iterations
-            smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
+            smallinds = findall(p -> (abs(p) < abs(lambda)), Xi) #array of indicies with small coefficients
             # println(smallinds)
             Xi[smallinds] .= 0
             biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
             # println(biginds)
-            Xi[biginds] = theta_arrays[l][:, biginds] \ data_arrays[l]
+            Xi[biginds] = theta[:, biginds] \ data_arrays[l]
         end
         println(l, ": ", Xi)
     end
-
 end
 
-theta = sparse_representation(library, data, times, vars)
+# theta = sparse_representation(library, data, times, vars)
 
 
 ########### Scalar Multivariable ####################
-# data = [
-#     0 3 16 45 96 175 288 441 640 891 1200 1573 2016 2535 3136 3825 4608 5491 6480 7581 8800
-# ] # xy + x^3 (x = t, y =  2t)
 # times = [i for i = 0:20]
+# data = [f3(t) - f7(t) + 4 for t in times]
 # row_1 = [1 for t in times]
 # row_x = [f1(t) for t in times]
-# row_y = [f4(2t) for t in times]
-# row_xy = [f1(t) * f4(2t) for t in times]
+# row_y = [f4(t) for t in times]
+# row_xy = [f1(t) * f4(t) for t in times]
 # row_x3 = [f3(t) for t in times]
 # theta = [row_1;; row_x;; row_y;; row_xy;; row_x3]
 # lambda = 0.25
 # data = vec(permutedims(data)) # Vector of data, x then y
 # Xi = theta \ data
 # for k in 1:n_iterations
-#     smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
+#     smallinds = findall(p -> (abs(p) < abs(lambda)), Xi) #array of indicies with small coefficients
 #     # println(smallinds)
 #     Xi[smallinds] .= 0
 #     biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
 #     # println(biginds)
 #     Xi[biginds] = theta[:, biginds] \ data
+#     # print(Xi)
 # end
 # println(Xi)
 #####################################################
 ########### Vector Multivariable ####################
-data = [
-    0 3 16 45 96 175 288 441 640 891 1200;
-    3 5 11 21 35 53 75 101 131 165 203
-] # 1. xy + x^3, 
-# 2. xy + 3 (x = t, y = 2t)
+# n_iterations = 10
+# times = range(1, 10, length=100)
+# data2 = [f7(t) - f3(t) for t in times]
+# data1 = [f7(t) + 3 for t in times]
+# lentimes = length(times)
+# zed = zeros(Integer(length(times) / 2))
+# # times = [[i for i = 1:10]; [i for i = 1:10]]
+# row_1 = [1 for t in times]
+# row_x = [f1(t) for t in times]
+# row_x2 = [f2(t) for t in times]
+# row_x3 = [f3(t) for t in times]
+# row_y = [f1(2t) for t in times]
+# row_y2 = [f5(t) for t in times]
+# row_y3 = [f6(t) for t in times]
+# row_xy = [f1(t) * f1(2t) for t in times]
 
-times = [[i for i = 0:10]; [i for i = 0:10]]
-row_1 = [1 for t in times]
-row_x = [f1(t) for t in times]
-row_y = [f4(t) for t in times]
-row_xy = [f1(t) * f4(t) for t in times]
-row_x3 = [f3(t) for t in times]
+# theta = [row_1;; row_x;; row_x2;; row_x3;; row_xy]
 
-theta = [row_1;; row_x;; row_y;; row_xy;; row_x3]
-
-lambda = 0.25
-data = vec(permutedims(data))
-data1 = data[1:11]
-data2 = data[12:22]
-theta1 = theta[1:11, :]
-theta2 = theta[12:22, :]
-datas = [[data1] [data2]]
-thetas = [[theta1] [theta2]]
-for l in 1:size(datas, 2)
-    Xi = thetas[l] \ datas[l]
-    for k in 1:n_iterations
-        smallinds = findall(p -> (p < abs(lambda)), Xi) #array of indicies with small coefficients
-        # println(smallinds)
-        Xi[smallinds] .= 0
-        biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-        # println(biginds)
-        Xi[biginds] = thetas[l][:, biginds] \ datas[l]
-    end
-    println(l, ": ", Xi)
-end
+# lambda = 0.25
+# datas = [[data1] [data2]]
+# for l in 1:size(datas, 2)
+#     Xi = theta \ datas[l]
+#     for k in 1:n_iterations
+#         smallinds = findall(p -> (abs(p) < abs(lambda)), Xi) #array of indicies with small coefficients
+#         # println(smallinds)
+#         Xi[smallinds] .= 0
+#         biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
+#         # println(biginds)
+#         Xi[biginds] = theta[:, biginds] \ datas[l]
+#     end
+#     println(l, ": ", Xi)
+# end
 ######################################################
 ###################################### make theta vector of matricies w/ each matrix like eq 4a
 ### plan
-# 1. clean up, make funtion with few inputs (data & library)
+# 1. multivariable input scalar output (multiple times?)
 # 2. 
 # 3. true SINDy
 
