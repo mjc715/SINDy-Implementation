@@ -71,17 +71,6 @@ function generate_trajectory(; type::String = "fluid")
     try 
         return solve(prob, Tsit5())
     catch
-        return nothing
+        return generate_trajectory(type = type)
     end
-end
-
-function generate_trajectory(n::Integer; type::String = "fluid")
-    trs = []
-
-    while length(trs) < n
-        tr = generate_trajectory(type = type)
-        (tr !== nothing) && push!(trs, tr)
-    end
-
-    return trs
 end
