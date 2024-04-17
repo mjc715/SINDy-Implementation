@@ -19,10 +19,9 @@ data1 = [f2(t) - f1(t) for t in times] # 1. x^2-x
 data2 = [f7(t) - 3 for t in times]
 data = [data1; data2] # 2. xy - 3 (x = t, y = sin(t))
 
-function sparse_representation(library, data, times, vars)
+function sparse_representation(library, data, times, sol_vec, lambda=0.25)
     helper = []
     n_iterations = 10
-    lambda = 0.25
 
     for f in library
         i = 1
