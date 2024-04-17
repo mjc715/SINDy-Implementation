@@ -74,3 +74,14 @@ function generate_trajectory(; type::String = "fluid")
         return nothing
     end
 end
+
+function generate_trajectory(n::Integer; type::String = "fluid")
+    trs = []
+
+    while length(trs) < n
+        tr = generate_trajectory(type = type)
+        (tr !== nothing) && push!(trs, tr)
+    end
+
+    return trs
+end
