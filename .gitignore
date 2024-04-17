@@ -1,3 +1,4 @@
 *.pdf
 *.m
 .DS_Store
+Manifest.toml

@@ -1,19 +1,19 @@
-using OrdinaryDiffEq
+using DifferentialEquations
 using MAT
 using Interpolations
 using Distributions
 
-xyt0 = matread("sargassum-xyorigin.mat")
+xyt0 = matread(joinpath(@__DIR__, "sargassum-xyorigin.mat"))
 lon_origin = xyt0["lon_origin"]
 lat_origin = xyt0["lat_origin"]
 
-xyt = matread("sargassum-xyt.mat")
+xyt = matread(joinpath(@__DIR__, "sargassum-xyt.mat"))
 x, y, t = (xyt["x"], xyt["y"], xyt["t"]) .|> vec
 x = range(x[1], x[end], length = length(x))
 y = range(y[1], y[end], length = length(y))
 t = range(0, t[end] - t[1], length = length(t))
 
-uv = matread("sargassum-uv.mat")
+uv = matread(joinpath(@__DIR__, "sargassum-uv.mat"))
 vx_data, vy_data = (uv["u"], uv["v"]) .|> x -> permutedims(x, (2, 1, 3))
 
 vx = cubic_spline_interpolation((x, y, t), vx_data)
@@ -50,7 +50,20 @@ end
 
 ###
 
-function generate_trajectory(; type::String = "fluid")
+"""
+    generate_trajectory(type)
+
+Generate a single trajectory initialized randomly, integrating equations of type `type`.
+
+Returns an `ODESolution`.
+
+### Types
+
+- `"fluid"`: Water trajectory (x, y).
+- `"slow"`: Slow manifold Maxey-Riley approximation (x, y).
+- `"full"`: Full Maxey-Riley equations (x, y, vx, vy).
+"""
+function generate_trajectory(type::String)
     @assert type in ["fluid", "slow", "full"]
 
     xy0 = [rand(Uniform(extrema(x)...)), rand(Uniform(extrema(y)...))]
@@ -71,6 +84,6 @@ function generate_trajectory(; type::String = "fluid")
     try 
         return solve(prob, Tsit5())
     catch
-        return generate_trajectory(type = type)
+        return generate_trajectory(type)
     end
 end
