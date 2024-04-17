@@ -3,9 +3,12 @@ using MAT
 using Interpolations
 using Distributions
 
+include(joinpath(@__DIR__, "coordinates.jl"))
+
 xyt0 = matread(joinpath(@__DIR__, "sargassum-xyorigin.mat"))
 lon_origin = xyt0["lon_origin"]
 lat_origin = xyt0["lat_origin"]
+ref = EquirectangularReference(lon0 = lon_origin, lat0 = lat_origin)
 
 xyt = matread(joinpath(@__DIR__, "sargassum-xyt.mat"))
 x, y, t = (xyt["x"], xyt["y"], xyt["t"]) .|> vec
@@ -66,7 +69,7 @@ Returns an `ODESolution`.
 function generate_trajectory(type::String)
     @assert type in ["fluid", "slow", "full"]
 
-    xy0 = [rand(Uniform(extrema(x)...)), rand(Uniform(extrema(y)...))]
+    xy0 = [rand(Uniform(-60, -50)), rand(Uniform(30, 40))] |> x -> sph2xy(x..., ref)
     t1 = rand(Uniform(0, maximum(t)/2))
     t2 = rand(Uniform(t1 + 10, maximum(t) - 1))
     tspan = (t1, t2)
