@@ -50,24 +50,6 @@ end
 
 ###
 
-xy0 = [0.0, 0.0]
-tspan = (0.0, 1.0)
-
-prob = ODEProblem(f_fluid!, xy0, tspan)
-sol_flu = solve(prob, Tsit5())
-
-xy0 = [0.0, 0.0]
-tspan = (0.0, 1.0)
-
-prob = ODEProblem(f_slow!, xy0, tspan)
-sol_slo = solve(prob, Tsit5())
-
-xy0 = [0.0, 0.0, 1.0, 1.0]
-tspan = (0.0, 1.0)
-
-prob = ODEProblem(f_full!, xy0, tspan)
-sol_slo = solve(prob, Tsit5())
-
 function generate_trajectory(; type::String = "fluid")
     @assert type in ["fluid", "slow", "full"]
 
