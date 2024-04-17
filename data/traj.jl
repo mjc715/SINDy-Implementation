@@ -82,7 +82,8 @@ function generate_trajectory(type::String)
     end
 
     try 
-        return solve(prob, Tsit5())
+        solve(prob, Tsit5())
+        return prob
     catch
         return generate_trajectory(type)
     end
