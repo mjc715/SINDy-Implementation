@@ -1,20 +1,31 @@
 using DifferentialEquations
 using ForwardDiff
-include("practice.jl")
+include("data/traj.jl")
+# ] > activate . > up
 
 # Define library functions here
-f0(t, x, y, z) = 1
-f1(t, x, y, z) = x(t)
-f2(t, x, y, z) = x(t)^2
-f3(t, x, y, z) = x(t)^3
-f4(t, x, y, z) = y(t)
-f5(t, x, y, z) = y(t)^2
-f6(t, x, y, z) = x(t) * y(t)
-f7(t, x, y, z) = exp(x(t))
-f8(t, x, y, z) = z(t)
-f9(t, x, y, z) = x(t) * z(t)
+f0(t, sol) = 1
+f1(t, sol) = sol(t)[1]
+f2(t, sol) = sol(t)[1]^2
+f3(t, sol) = sol(t)[1]^3
+f4(t, sol) = sol(t)[2]
+f5(t, sol) = sol(t)[2]^2
+f6(t, sol) = sol(t)[1] * sol(t)[2]
+f7(t, sol) = exp(sol(t)[1])
+f8(t, sol) = vx(sol(t)[1], sol(t)[2], t)
+f9(t, sol) = vy(sol(t)[1], sol(t)[2], t)
+f10(t, sol) = sol(t)[3]
+f11(t, sol) = sol(t)[4]
+f12(t, sol) = sol(t)[1] * sol(t)[3]
 
-library = [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9]
+func_names = ["", "x", "x^2", "x^3", "y", "y^2", "xy", "e^x", "vx", "vy", "dx", "dy", "xz"]
+library = [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12]
+
+# func_names = ["", "x", "x^2", "x^3", "y", "y^2", "xy", "e^x", "vx", "vy"]
+# library = [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9]
+
+# func_names = ["dx", "dy", "vx", "vy"]
+# library = [f10, f11, f8, f9]
 
 function f_vec!(du, u, p, t)
     du[1] = u[1] - u[2]^2
@@ -28,36 +39,24 @@ function lorenz!(du, u, p, t)
 end
 
 # Creating ODEProblem to solve
-prob_vec = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0))
+# prob_vec = ODEProblem(f_vec!, [1.0, 1.0], (0.0, 10.0))
+# prob_vec = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0))
+prob_vec = generate_trajectory("full")
 
 
-
-
-
-function SINDy_implementation(prob_vec, library, lambda=0.25, n_points=100, n_iterations=10)
-
+function SINDy_implementation(prob_vec, library; lambda=0.1, n_points=100, n_iterations=10)
+    # n_points = 50
+    # n_iterations = 10
+    # lambda = 0.1
     # Solving ODEProblem and getting num of variables
     sol_vec = solve(prob_vec)
-    vars = size(prob_vec.u0)[1]
-
-    # Defining the variable functions
-    if vars == 1
-        x = (t) -> sol_vec(t)[1]
-        y = (t) -> 0
-        z = (t) -> 0
-    elseif vars == 2
-        x = (t) -> sol_vec(t)[1]
-        y = (t) -> sol_vec(t)[2]
-        z = (t) -> 0
-    elseif vars == 3
-        x = (t) -> sol_vec(t)[1]
-        y = (t) -> sol_vec(t)[2]
-        z = (t) -> sol_vec(t)[3]
-    end
+    u0 = vec(prob_vec.u0)
+    vars = size(u0)[1]
 
     # Getting time points and data from them
     times = range(prob_vec.tspan[1], prob_vec.tspan[2], length=n_points) |> collect
     data = [ForwardDiff.derivative(t -> sol_vec(t), ti) for ti in times]
+
     data_transform = zeros(size(data[1])[1], size(data)[1])
 
     # Formatting data for use in sparse representation
@@ -74,7 +73,7 @@ function SINDy_implementation(prob_vec, library, lambda=0.25, n_points=100, n_it
         i = 1
         row = zeros(length(times))
         for t in times
-            row[i] = f(t, x, y, z)
+            row[i] = f(t, sol_vec)
             i += 1
         end
         push!(helper, row)
@@ -90,24 +89,12 @@ function SINDy_implementation(prob_vec, library, lambda=0.25, n_points=100, n_it
     end
 
 
+
     # More data formatting
     data_transform = vec(permutedims(data_transform))
-    data_arrays = []
+    data_arrays = reshape(data_transform, Integer(length(data_transform) / vars), vars)
+    data_arrays = [data_arrays[:, i] for i = 1:size(data_arrays, 2)]
 
-    if vars == 2
-        midpoint = Integer(length(data_transform) / 2)
-        row1 = data_transform[1:midpoint]
-        row2 = data_transform[(midpoint+1):length(data_transform)]
-        data_arrays = [[row1] [row2]]
-    elseif vars == 1
-        data_arrays = data_transform
-    elseif vars == 3
-        midpoint = Integer(length(data_transform) / 3)
-        row1 = data_transform[1:midpoint]
-        row2 = data_transform[(midpoint+1):(midpoint*2)]
-        row3 = data_transform[(midpoint*2+1):length(data_transform)]
-        data_arrays = [[row1] [row2] [row3]]
-    end
 
 
     # Sparse representation algorithm
@@ -120,10 +107,24 @@ function SINDy_implementation(prob_vec, library, lambda=0.25, n_points=100, n_it
             Xi[biginds] = theta[:, biginds] \ data_arrays[l]
         end
         # Print results for each equation
-        println(l, ": ", Xi)
+        line = "$l: "
+        for (num, name) in zip(Xi, func_names)
+            # println(num)
+            if abs(num) > 10e-6
+                line *= "$num$name + "
+            end
+        end
+        line = line[1:length(line)-3]
+        println(line)
+
     end
 
 end
 
 
-SINDy_implementation(prob_vec, library)
+SINDy_implementation(prob_vec, library, n_points=100, lambda=0.05)
+
+# Get "full" to work 4 vars
+# implement for generic # of vars
+
+# Data transform not properly getting all vars
