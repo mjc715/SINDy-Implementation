@@ -30,7 +30,7 @@ f11(t, traj) = vy(X(t, traj), Y(t, traj), t)
 library = [f1, f2, f3, f4, f5, f6, f7, f10, f11]
 library_names = ["x", "y", "dxdt", "dydt", "x^2", "y^2", "xy", "v_x", "v_y"]
 
-si = sindy(times, trajectories, library, order = 2, library_names = library_names, λ = (0.2, Inf))
+si = sindy(times, trajectories, library, order = 2, library_names = library_names, λ_sparse = 0.2)
 
 # du[3] = f * (dydt - δ * vy(x, y, t)) + (vx(x, y, t) - dxdt) / τ
 # du[4] = f * (δ * vx(x, y, t) - dxdt) + (vy(x, y, t) - dydt) / τ

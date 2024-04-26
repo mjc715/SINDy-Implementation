@@ -3,19 +3,19 @@ using Interpolations
 using Markdown
 
 """
-    sparse_representation(times, target_data, library; λ, max_iters, library_names, pretty_print)
+    sparse_representation(times, target_data, library; λ_sparse, max_iters, library_names, pretty_print)
 """
 function sparse_representation(
     times::Vector{<:Real},
     target_data::Vector{<:Real},
     library::Union{Vector{<:Function}, Matrix{<:Real}};
-    λ::Tuple{Real, Real} = (0.1, Inf), 
+    λ_sparse::Real= 0.1, 
     max_iters::Integer = 10,
     library_names::Union{Vector{String}, Nothing} = nothing, 
     pretty_print::Bool = library_names !== nothing)
 
     @assert all([length(times) > 0, length(target_data) > 0, length(library) > 0])
-    @assert all(λ .> 0)
+    @assert all(λ_sparse .> 0)
     @assert max_iters > 0
     @assert length(times) == length(target_data)
     
@@ -30,10 +30,10 @@ function sparse_representation(
 
     Xi = library_data \ target_data
     
-    smallinds = findall(p -> (abs(p) < λ[1] || abs(p) > λ[2]), Xi)
+    smallinds = findall(p -> abs(p) < λ_sparse, Xi)
     biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
     for _ in 1:max_iters
-        smallinds_next = findall(p -> (abs(p) < λ[1] || abs(p) > λ[2]), Xi) # library functions with small coefficients
+        smallinds_next = findall(p -> abs(p) < λ_sparse, Xi) # library functions with small coefficients
     
         if smallinds_next == smallinds
             # this iteration has not changed the location of smallinds, so exit the loop
@@ -65,7 +65,7 @@ function sparse_representation(
     times::Vector{<:Real},
     target_data::Matrix{<:Real},
     library::Union{Vector{<:Function}, Matrix{<:Real}}; 
-    λ::Tuple{Real, Real} = (0.1, Inf), 
+    λ_sparse::Real= 0.1, 
     max_iters::Integer = 10,
     library_names::Union{Vector{String}, Nothing} = nothing, 
     pretty_print::Bool = library_names !== nothing)
@@ -75,7 +75,7 @@ function sparse_representation(
     Xi = []
     for i = 1:size(target_data, 2)
         sr = sparse_representation(times, target_data[:, i], library, 
-            λ = λ, 
+            λ_sparse = λ_sparse, 
             max_iters = max_iters, 
             library_names = library_names, 
             pretty_print = pretty_print)
@@ -106,7 +106,7 @@ function sindy(
     trajectories::Matrix{<:Real},
     library::Vector{<:Function}; 
     order::Integer = 1,
-    λ::Tuple{Real, Real} = (0.1, Inf), 
+    λ_sparse::Real= 0.1, 
     max_iters::Integer = 10,
     library_names::Union{Vector{String}, Nothing} = nothing, 
     pretty_print::Bool = true)
@@ -126,7 +126,7 @@ function sindy(
     library_data = [f(t, itps) for t in times, f in library] # N_times x N_library_funcs matrix
     
     return sparse_representation(times, target_data, library_data, 
-        λ = λ, 
+        λ_sparse = λ_sparse, 
         max_iters = max_iters, 
         library_names = library_names,
         pretty_print = pretty_print)

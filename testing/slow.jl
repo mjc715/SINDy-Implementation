@@ -25,7 +25,7 @@ f11(t, traj) = vy(X(t, traj), Y(t, traj), t)
 library = [f1, f2, f4, f5, f7, f10, f11]
 library_names = ["x", "y", "x^2", "y^2", "xy", "v_x", "v_y"]
 
-si = sindy(times, trajectories, library, order = 1, library_names = library_names, λ = (0.05, Inf))
+si = sindy(times, trajectories, library, order = 1, library_names = library_names, λ_sparse = 0.05)
 
 c = round(f * τ * (1 - δ), sigdigits = 3)
 

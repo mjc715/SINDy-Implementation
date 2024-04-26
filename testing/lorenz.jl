@@ -32,4 +32,4 @@ f9(t, traj) = Y(t, traj)*Z(t, traj)
 library = [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9]
 library_names = ["", "x", "y", "z", "x^2", "y^2", "z^2", "xy", "xz", "yz"]
 
-si = sindy(times, trajectories, library, order = 1, library_names = library_names, λ = (0.9, Inf), pretty_print = true)
+si = sindy(times, trajectories, library, order = 1, library_names = library_names, λ_sparse = 0.9)
