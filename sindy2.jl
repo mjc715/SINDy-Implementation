@@ -1,15 +1,17 @@
 using DifferentialEquations
 using Interpolations
+import MultivariateStats
 using Markdown
 
 """
-    sparse_representation(times, target_data, library; λ_sparse, max_iters, library_names, pretty_print)
+    sparse_representation(times, target_data, library; λ_sparse, λ_ridge, max_iters, library_names, pretty_print)
 """
 function sparse_representation(
     times::Vector{<:Real},
     target_data::Vector{<:Real},
     library::Union{Vector{<:Function}, Matrix{<:Real}};
-    λ_sparse::Real= 0.1, 
+    λ_sparse::Real = 0.1,
+    λ_ridge::Real = 0.0, 
     max_iters::Integer = 10,
     library_names::Union{Vector{String}, Nothing} = nothing, 
     pretty_print::Bool = library_names !== nothing)
@@ -28,7 +30,7 @@ function sparse_representation(
         library_data = library
     end
 
-    Xi = library_data \ target_data
+    Xi = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
     
     smallinds = findall(p -> abs(p) < λ_sparse, Xi)
     biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
@@ -44,7 +46,7 @@ function sparse_representation(
     
         Xi[smallinds] .= 0
         biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-        Xi[biginds] = library_data[:, biginds] \ target_data
+        Xi[biginds] = MultivariateStats.ridge(library_data[:, biginds], target_data, λ_ridge, bias = false)
     end
     
     if pretty_print && library_names !== nothing
@@ -65,7 +67,8 @@ function sparse_representation(
     times::Vector{<:Real},
     target_data::Matrix{<:Real},
     library::Union{Vector{<:Function}, Matrix{<:Real}}; 
-    λ_sparse::Real= 0.1, 
+    λ_sparse::Real = 0.1, 
+    λ_ridge::Real = 0.0, 
     max_iters::Integer = 10,
     library_names::Union{Vector{String}, Nothing} = nothing, 
     pretty_print::Bool = library_names !== nothing)
@@ -76,6 +79,7 @@ function sparse_representation(
     for i = 1:size(target_data, 2)
         sr = sparse_representation(times, target_data[:, i], library, 
             λ_sparse = λ_sparse, 
+            λ_ridge = λ_ridge,
             max_iters = max_iters, 
             library_names = library_names, 
             pretty_print = pretty_print)
@@ -106,7 +110,8 @@ function sindy(
     trajectories::Matrix{<:Real},
     library::Vector{<:Function}; 
     order::Integer = 1,
-    λ_sparse::Real= 0.1, 
+    λ_sparse::Real = 0.1, 
+    λ_ridge::Real = 0.0, 
     max_iters::Integer = 10,
     library_names::Union{Vector{String}, Nothing} = nothing, 
     pretty_print::Bool = true)
@@ -127,6 +132,7 @@ function sindy(
     
     return sparse_representation(times, target_data, library_data, 
         λ_sparse = λ_sparse, 
+        λ_ridge = λ_ridge,
         max_iters = max_iters, 
         library_names = library_names,
         pretty_print = pretty_print)
