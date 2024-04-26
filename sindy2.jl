@@ -24,31 +24,25 @@ function sparse_representation(
 
     Xi = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
     
-    smallinds = findall(p -> abs(p) < λ_sparse, Xi)
-    biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
     for _ in 1:max_iters
-        smallinds_next = findall(p -> abs(p) < λ_sparse, Xi) # library functions with small coefficients
     
-        if smallinds_next == smallinds
-            # this iteration has not changed the location of smallinds, so exit the loop
-            break
-        else
-            smallinds = smallinds_next
-        end
-    
+        smallinds = findall(p -> abs(p) < λ_sparse, Xi) # library functions with small coefficients
         Xi[smallinds] .= 0
         biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
         Xi[biginds] = MultivariateStats.ridge(library_data[:, biginds], target_data, λ_ridge, bias = false)
     end
     
     if pretty_print && library_names !== nothing
-        nums = string.(round.(Xi[biginds], sigdigits = 3)) .|> x -> "[$x]"
+        nums = string.(round.(Xi, sigdigits = 3)) .|> x -> "[$x]"
         output_string = ""
         for i = 1:length(nums)
-            output_string *= nums[i] * library_names[biginds[i]]
-            output_string *= i == length(nums) ? "" : " + "
+            if nums[i] != "[0.0]"
+                output_string *= nums[i] * library_names[i] * " + "
+            end
         end
     
+        output_string = output_string[1:end-3]
+
         return output_string
     else
         return Xi
@@ -80,6 +74,41 @@ function sparse_representation(
 
     return Xi
 end
+
+# function library_bagging(
+#     times::Vector{<:Real},
+#     target_data::Matrix{<:Real},
+#     library_data::Matrix{<:Real};
+#     n_bootstraps::Integer = 100,
+#     n_lib::Integer = floor(Int64, size(library_data, 2)/2),
+#     λ_sparse::Real = 0.1, 
+#     λ_ridge::Real = 0.0, 
+#     max_iters::Integer = 10,
+#     library_names::Union{Vector{String}, Nothing} = nothing, 
+#     pretty_print::Bool = library_names !== nothing)
+
+#     @assert size(target_data, 1) == length(times)
+#     @assert n_bootstraps > 0
+#     @assert 1 <= n_lib <= size(library_data, 2)
+
+#     # n_vars x n_lib x n_boots
+#     Xi = zeros(size(target_data, 2), size(library_data, 2), n_bootstraps)
+#     for b = 1:n_bootstraps
+#         idx = sample(size(library_data, 2), n_lib, replace = false)
+#         library_data_b = library_data[:,idx]
+#         Xi_b = sparse_representation(times, target_data, library_data_b, 
+#             λ_sparse = λ_sparse,
+#             λ_ridge = λ_ridge,
+#             max_iters = max_iters,
+#             library_names = library_names,
+#             pretty_print = pretty_print)
+
+#         Xi[:,idx,b] .= stack(Xi_b, dims = 1)
+#     end
+
+#     return Xi
+# end
+
 
 function process_trajectories(
     times::Vector{<:Real}, 
