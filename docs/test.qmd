@@ -1,0 +1,151 @@
+---
+title: "Report on SINDy progress"
+author: "Gage Bonner and Michael Castellucci"
+latex-tinytex: true
+format:
+  pdf:
+    documentclass: article
+    classoption: [twocolumn]
+    keep-tex: true
+    toc: true
+    number-sections: true
+    colorlinks: true
+    include-in-header:
+      - text: |
+          \usepackage{algorithm}
+          \usepackage{algpseudocode}
+          \usepackage[left=2cm,right=2cm,top = 2cm,bottom = 2cm]{geometry}
+          \usepackage[style=alphabetic]{biblatex}
+    cite-method: biblatex
+bibliography: refs.bib
+engine: julia
+julia:
+  exeflags: ["--project=/Users/gagebonner/Desktop/Repositories/SINDy-Implementation/"]
+highlight-style: arrow
+---
+
+***
+
+# Summary of work
+
+In this project, we investigated the application of *data discovery* algorithms to learn the governing equations for a dynamical system from numerical realizations of their trajectories. We apply the sparse identification of nonlinear dynamics (``SINDy") as originally proposed in \cite{brunton2016discovering} as well as a number of its extensions. The core idea behind these algorithms is that many dynamical systems in science are represented by differential equation systems $\dot{x} = f(x)$ where $f(x)$ often a linear combination of a small number of elementary functions. By contrast, the trajectories $x(t)$ may be extremely complicated and ill-suited to direct fitting. Consider the classic Lorenz system
+\begin{subequations} \label{eq:lorenz-def}
+\begin{align} 
+    \dot{x} &= 10 (y - x), \\
+    \dot{y} &= x (28 - z) - y, \\ 
+    \dot{z} &= x y - (8 / 3) z .
+\end{align}
+\end{subequations}
+Trajectories $X(t) = (x(t), y(t), z(t))$ of this system are chaotic, making it difficult or impossible to propose a function that fits $X(t)$ directly. On the other hand, $\dot{X}$ is a low order polynomial function of $X(t)$ and hence should be much more tractable in principal. At the highest level, we therefore have the following problem: given numerical trajectories $\{x(t_1), x(t_2), \dots \}$, compute numerically $\{\dot{x}(t_1), \dot{x}(t_2), \dots \}$ and attempt to find a parsimonious (equivalently: \emph{sparse}) combination of simple functions of the $x(t)$ that faithfully represents it. 
+
+# Core algorithms
+
+## Sparse representations
+
+Suppose that several values of a function of $f : \mathbb{R} \to \mathbb{R}$ are observed, $\{f(x_1), f(x_2), \dots \}$. A \emph{sparse representation} seeks to represent $f$ as a linear combination of elementary functions of $x$ that contains as few terms as possible while still faithfully representing the behavior of $f$. 
+
+Consider first the problem of representing a series of 
+
+## SINDy
+
+## E-SINDy
+
+# Julia Implementation
+
+# Results
+
+## Direct sparse representations
+
+## Fluid
+
+## Slow
+
+## Full
+
+# Conclusions
+
+```{julia}
+using DifferentialEquations
+```
+
+```{julia}
+1 + 2
+```
+
+```{julia}
+1 + 2
+```
+
+```{julia}
+Pkg.status()
+```
+
+<!-- ```{julia}
+f0(t) = 1.0
+f1(t) = 2*t
+f2(t) = sin(t)
+f3(t) = f1(t)*f2(t)
+f4(t) = cos(t)
+f5(t) = f1(t)*f4(t)
+
+times = range(0.0, 10.0, length = 100) |> collect
+target_data1 = [f1(t) + 2*f2(t) - 3*f3(t) + 0.1*rand() for t in times]
+target_data2 = [4*f1(t) - 2*f4(t) - 5*f3(t) + 0.1*rand() for t in times]
+target_data = [target_data1 ;; target_data2]
+
+library = [f0, f1, f2, t -> f1(t)^1.2, f3, t -> f2(t)^2, f4, f5]
+library_names = ["", "2t", "sin(t)", "(2t)^1.2", "2t*sin(t)", "sin(t)^2", "cos(t)", "2t*cos(t)"]
+library_data = [f(t) for t in times, f in library]
+
+si = sparse_representation(times, target_data, library_data, library_names = library_names, λ_sparse = 0.1, pretty_print = false)
+``` -->
+
+
+<!-- ```{julia}
+function lorenz!(du, u, p, t)
+    x, y, z = u
+    du[1] = 10.0 * (y - x)
+    du[2] = x * (28.0 - z) - y
+    du[3] = x * y - (8 / 3) * z
+end
+
+prob_vec = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0))
+sol_vec = solve(prob_vec)
+``` -->
+
+Blah blah $sdfadf$
+\begin{equation}
+F = ma
+\end{equation}
+
+::: {.callout-tip icon=false}
+## Algorithm 1 (stock)
+
+```{julia}
+penguins = 1 # <1>
+penguins*2 # <2>
+```
+1. Take `penguins`, and then,
+2. add new columns for the bill ratio and bill area...
+:::
+
+
+\begin{algorithm}
+\caption{An algorithm with caption}\label{alg:cap}
+\begin{algorithmic}
+\Require $n \geq 0$
+\Ensure $y = x^n$
+\State $y \gets 1$
+\State $X \gets x$
+\State $N \gets n$
+\While{$N \neq 0$}
+\If{$N$ is even}
+    \State $X \gets X \times X$
+    \State $N \gets \frac{N}{2}$  \Comment{This is a comment}
+\ElsIf{$N$ is odd}
+    \State $y \gets y \times X$
+    \State $N \gets N - 1$
+\EndIf
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
