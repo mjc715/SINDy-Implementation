@@ -4,12 +4,12 @@ import MultivariateStats
 using Markdown
 
 """
-    sparse_representation(times, target_data, library; λ_sparse, λ_ridge, max_iters, library_names, pretty_print)
+    sparse_representation(times, target_data, library_data; λ_sparse, λ_ridge, max_iters, library_names, pretty_print)
 """
 function sparse_representation(
     times::Vector{<:Real},
     target_data::Vector{<:Real},
-    library::Union{Vector{<:Function}, Matrix{<:Real}};
+    library_data::Matrix{<:Real};
     λ_sparse::Real = 0.1,
     λ_ridge::Real = 0.0, 
     max_iters::Integer = 10,
@@ -20,15 +20,7 @@ function sparse_representation(
     @assert all(λ_sparse .> 0)
     @assert max_iters > 0
     @assert length(times) == length(target_data)
-    
-    if library isa Vector{<:Function}
-        library_names !== nothing && @assert length(library_names) == length(library)
-        library_data = [f(t) for t in times, f in library] # N_times x N_library_funcs matrix
-    else # data were provided directly
-        library_names !== nothing && @assert length(library_names) == size(library, 2)
-        @assert length(times) == size(library, 1)
-        library_data = library
-    end
+    @assert length(times) == size(library_data, 1)
 
     Xi = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
     
@@ -66,7 +58,7 @@ end
 function sparse_representation(
     times::Vector{<:Real},
     target_data::Matrix{<:Real},
-    library::Union{Vector{<:Function}, Matrix{<:Real}}; 
+    library_data::Matrix{<:Real};
     λ_sparse::Real = 0.1, 
     λ_ridge::Real = 0.0, 
     max_iters::Integer = 10,
@@ -77,7 +69,7 @@ function sparse_representation(
 
     Xi = []
     for i = 1:size(target_data, 2)
-        sr = sparse_representation(times, target_data[:, i], library, 
+        sr = sparse_representation(times, target_data[:, i], library_data, 
             λ_sparse = λ_sparse, 
             λ_ridge = λ_ridge,
             max_iters = max_iters, 
