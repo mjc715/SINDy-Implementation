@@ -4,7 +4,7 @@
 \PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
 %
 \documentclass[
-  twocolumn]{article}
+]{article}
 
 \usepackage{amsmath,amssymb}
 \usepackage{iftex}
@@ -260,6 +260,9 @@ following problem: given numerical trajectories
 parsimonious (equivalently: \emph{sparse}) combination of simple
 functions of the \(x(t)\) that faithfully represents it.
 
+This report contains embedded code from the
+\href{https://julialang.org/}{Julia} programming language.
+
 \section{Core algorithms}\label{core-algorithms}
 
 \subsection{Sparse representations}\label{sparse-representations}
@@ -267,11 +270,28 @@ functions of the \(x(t)\) that faithfully represents it.
 Suppose that several values of a function of
 \(f : \mathbb{R} \to \mathbb{R}\) are observed,
 \(\{f(x_1), f(x_2), \dots \}\). A \emph{sparse representation} seeks to
-represent \(f\) as a linear combination of elementary function of \(x\)
+represent \(f\) as a linear combination of elementary functions of \(x\)
 that contains as few terms as possible while still faithfully
-representing the behavior of \(f\).
+representing the behavior of \(f\). As a first example, take
+\(f(x) = x + 2x^2 + 5x^3\). We will add a small noise term to simulate
+real data.
 
-Consider first the problem of representing a series of
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{=}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2} \OperatorTok{+} \FloatTok{2}\NormalTok{x}\OperatorTok{\^{}}\FloatTok{2} \OperatorTok{+} \FloatTok{5}\NormalTok{x}\OperatorTok{\^{}}\FloatTok{2}
+\NormalTok{x\_points }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\FloatTok{0}\NormalTok{, }\FloatTok{1}\NormalTok{, length }\OperatorTok{=} \FloatTok{10}\NormalTok{)}
+\NormalTok{f\_points }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{+} \FloatTok{0.1}\FunctionTok{*rand}\NormalTok{() for x }\KeywordTok{in}\NormalTok{ x\_points]}
+\end{Highlighting}
+\end{Shaded}
+
+Assuming now that we
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/test.png}
+    \caption{test}
+    \label{fig:test}
+\end{figure}
 
 \subsection{SINDy}\label{sindy}
 
@@ -294,12 +314,6 @@ representations}\label{direct-sparse-representations}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ImportTok{using} \BuiltInTok{DifferentialEquations}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{Shaded}
-\begin{Highlighting}[]
 \FloatTok{1} \OperatorTok{+} \FloatTok{2}
 \end{Highlighting}
 \end{Shaded}
@@ -316,33 +330,15 @@ representations}\label{direct-sparse-representations}
 
 \begin{verbatim}
 3
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\BuiltInTok{Pkg}\NormalTok{.}\FunctionTok{status}\NormalTok{()}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-Status `~/Desktop/Repositories/SINDy-Implementation/Project.toml`
-  [e28b5b4c] Bootstrap v2.4.0
-  [0c46a032] DifferentialEquations v7.13.0
-  [31c24e10] Distributions v0.25.108
-  [f6369f11] ForwardDiff v0.10.36
-  [a98d9a8b] Interpolations v0.15.1
-  [23992714] MAT v0.10.6
-  [6f286f6a] MultivariateStats v0.10.2
-  [d6f4376e] Markdown
 \end{verbatim}
 
 Blah blah \(sdfadf\) \begin{equation}
 F = ma
 \end{equation}
 
-\begin{tcolorbox}[enhanced jigsaw, title={Algorithm 1 (stock)}, arc=.35mm, breakable, left=2mm, opacityback=0, bottomrule=.15mm, colframe=quarto-callout-tip-color-frame, titlerule=0mm, colbacktitle=quarto-callout-tip-color!10!white, coltitle=black, opacitybacktitle=0.6, leftrule=.75mm, bottomtitle=1mm, toptitle=1mm, rightrule=.15mm, colback=white, toprule=.15mm]
+\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, colframe=quarto-callout-tip-color-frame, breakable, bottomrule=.15mm, leftrule=.75mm, arc=.35mm, coltitle=black, rightrule=.15mm, titlerule=0mm, left=2mm, opacityback=0, colback=white, bottomtitle=1mm, title={Algorithm 1 (stock)}, toprule=.15mm, toptitle=1mm, opacitybacktitle=0.6]
 
-\phantomsection\label{annotated-cell-8}%
+\phantomsection\label{annotated-cell-6}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \NormalTok{penguins }\OperatorTok{=} \FloatTok{1} \hspace*{\fill}\NormalTok{\circled{1}}

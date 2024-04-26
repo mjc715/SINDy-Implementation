@@ -1,4 +1,5 @@
 .quarto/
+figures/
 test_files
 *.html
 *.pdf
