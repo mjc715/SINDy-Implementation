@@ -253,7 +253,7 @@ the classic Lorenz system \begin{subequations} \label{eq:lorenz-def}
 system are chaotic, making it difficult or impossible to propose a
 function that fits \(X(t)\) directly. On the other hand, \(\dot{X}\) is
 a low order polynomial function of \(X(t)\) and hence should be much
-more tractable in principal. At the highest level, we therefore have the
+more tractable in principle. At the highest level, we therefore have the
 following problem: given numerical trajectories
 \(\{x(t_1), x(t_2), \dots \}\), compute numerically
 \(\{\dot{x}(t_1), \dot{x}(t_2), \dots \}\) and attempt to find a
@@ -273,18 +273,144 @@ Suppose that several values of a function of
 represent \(f\) as a linear combination of elementary functions of \(x\)
 that contains as few terms as possible while still faithfully
 representing the behavior of \(f\). As a first example, take
-\(f(x) = x + 2x^2 + 5x^3\). We will add a small noise term to simulate
-real data.
+\(f(x) = x + \sin(x)\). We will add a small noise term to simulate real
+data. This is shown in Figure \ref{fig:f-1}.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{=}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2} \OperatorTok{+} \FloatTok{2}\NormalTok{x}\OperatorTok{\^{}}\FloatTok{2} \OperatorTok{+} \FloatTok{5}\NormalTok{x}\OperatorTok{\^{}}\FloatTok{2}
-\NormalTok{x\_points }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\FloatTok{0}\NormalTok{, }\FloatTok{1}\NormalTok{, length }\OperatorTok{=} \FloatTok{10}\NormalTok{)}
-\NormalTok{f\_points }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{+} \FloatTok{0.1}\FunctionTok{*rand}\NormalTok{() for x }\KeywordTok{in}\NormalTok{ x\_points]}
+\FunctionTok{f\_simple\_1}\NormalTok{(x) }\OperatorTok{=}\NormalTok{ x }\OperatorTok{+} \FunctionTok{sin}\NormalTok{(x)}
+\NormalTok{x\_points\_1 }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\OperatorTok{{-}}\FloatTok{5}\NormalTok{, }\FloatTok{5}\NormalTok{, length }\OperatorTok{=} \FloatTok{20}\NormalTok{) }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
+\NormalTok{f\_points\_1 }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f\_simple\_1}\NormalTok{(x) }\OperatorTok{+} \FloatTok{0.2}\FunctionTok{*rand}\NormalTok{() for x }\KeywordTok{in}\NormalTok{ x\_points\_1]}
 \end{Highlighting}
 \end{Shaded}
 
-Assuming now that we
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/f-1.png}
+    \caption{A simple data set from a scalar function.}
+    \label{fig:f-1}
+\end{figure}
+
+Assuming now that we are given this data with no knowledge of the
+underlying mechanics, how could this function be represented? Due to the
+oscillatory nature of the function, we might assume that it may be some
+linear combination of simple polynomials and sinusoids. Provided this
+sort of ``expert knowledge'', we could propose a \emph{library} of
+functions \(L(x)\) that constitute the set of all possible functions
+that we want to include in our model. In our case, we will take our
+library to be the vector \begin{equation}
+L(x) = (1, x, x^2, x^3, \sin x, \cos x).
+\end{equation} The problem is therefore to find a vector
+\(\xi \in \mathbb{R}^7\) such that \(f(x) \approx \xi \cdot L(x)\). To
+do this, we will construct an optimization problem whose solution is
+\(\xi\) that takes all of our observational data into account. The
+\emph{library data} \(\Theta\) is given by \begin{equation}
+\Theta(x) 
+= 
+\begin{pmatrix}
+L_1(x_1) & L_2(x_1) & \cdots & L_7(x_1) \\ 
+L_1(x_2) & L_2(x_2) & \cdots & L_7(x_2) \\
+\vdots   & \vdots   & \ddots & \vdots   \\
+L_1(x_N) & L_2(x_N) & \cdots & L_7(x_N) 
+\end{pmatrix}
+=
+\begin{pmatrix}
+1 & x_1 & \cdots & \cos(x_1) \\ 
+1 & x_2 & \cdots & \cos(x_2) \\
+\vdots   & \vdots   & \ddots & \vdots   \\
+1 & x_N & \cdots & \cos(x_N) 
+\end{pmatrix}.
+\end{equation} Given our \emph{target data}
+\(F = (f(x_1), f(x_2), \dots)\), we naturally have the following
+optimization problem \begin{equation}
+\xi^\star = \underset{\xi \in \mathbb{R}^7}{\text{argmin}} \lVert F - \Theta \xi \rVert_{2} ,
+\end{equation} where \(\Vert\cdot\rVert_2\) indicates the \(L_2\) norm
+and where our final representation is
+\(f(x) \approx L(x) \cdot \xi^\star\). This kind of simple problem is
+directly amenable to a linear least-squares solution.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{library\_1 }\OperatorTok{=}\NormalTok{ [x }\OperatorTok{{-}\textgreater{}} \FloatTok{1.0}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{3}\NormalTok{, x }\OperatorTok{{-}\textgreater{}} \FunctionTok{sin}\NormalTok{(x), x }\OperatorTok{{-}\textgreater{}} \FunctionTok{cos}\NormalTok{(x)]}
+\NormalTok{library\_names\_1 }\OperatorTok{=}\NormalTok{ [}\StringTok{"1"}\NormalTok{, }\StringTok{"x"}\NormalTok{, }\StringTok{"x\^{}2"}\NormalTok{, }\StringTok{"x\^{}3"}\NormalTok{, }\StringTok{"sin(x)"}\NormalTok{, }\StringTok{"cos(x)"}\NormalTok{]}
+\NormalTok{library\_data\_1 }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f}\NormalTok{(t) for t }\KeywordTok{in}\NormalTok{ x\_points\_1, f }\KeywordTok{in}\NormalTok{ library\_1]}
+
+\NormalTok{ls\_1 }\OperatorTok{=}\NormalTok{ MultivariateStats.}\FunctionTok{llsq}\NormalTok{(library\_data\_1, f\_points\_1, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
+\FunctionTok{f\_llsq\_1}\NormalTok{(x) }\OperatorTok{=} \FunctionTok{sum}\NormalTok{(ls\_1[i]}\OperatorTok{*}\NormalTok{library\_1[i](x) }\ControlFlowTok{for}\NormalTok{ i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{length}\NormalTok{(ls\_1))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{equation} \label{eq:f-simple-1-sparse}   f_{\text{llsq}}(x) = 0.124 \cdot 1 + 1.02 \cdot x -0.00307 \cdot x^{2} -0.001 \cdot x^{3} + 0.992 \cdot \sin\left( x \right) -0.0102 \cdot \cos\left( x \right) \end{equation}
+
+We can see that the fit produced is indeed quite good as in Figure
+\ref{fig:f-simple-llsq}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/f-1-llsq.png}
+    \caption{The linear least squares result.}
+    \label{fig:f-simple-llsq}
+\end{figure}
+
+\clearpage
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# let}
+\NormalTok{times }\OperatorTok{=}\NormalTok{ x\_points\_1 }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
+\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ f\_points\_1}
+
+\NormalTok{library }\OperatorTok{=}\NormalTok{ [x }\OperatorTok{{-}\textgreater{}} \FloatTok{1.0}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{3}\NormalTok{, x }\OperatorTok{{-}\textgreater{}} \FunctionTok{sin}\NormalTok{(x), x }\OperatorTok{{-}\textgreater{}} \FunctionTok{cos}\NormalTok{(x)]}
+\NormalTok{library\_names }\OperatorTok{=}\NormalTok{ [}\StringTok{"1"}\NormalTok{, }\StringTok{"x"}\NormalTok{, }\StringTok{"x\^{}2"}\NormalTok{, }\StringTok{"x\^{}3"}\NormalTok{, }\StringTok{"sin(x)"}\NormalTok{, }\StringTok{"cos(x)"}\NormalTok{]}
+\NormalTok{library\_data }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f}\NormalTok{(t) for t }\KeywordTok{in}\NormalTok{ times, f }\KeywordTok{in}\NormalTok{ library]}
+
+\NormalTok{λ\_sparse }\OperatorTok{=} \FloatTok{0.5}
+\NormalTok{λ\_ridge }\OperatorTok{=} \FloatTok{0.1}
+
+\NormalTok{ls }\OperatorTok{=}\NormalTok{ MultivariateStats.}\FunctionTok{llsq}\NormalTok{(library\_data, target\_data, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
+\NormalTok{pp\_ls }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(ls, library\_names)}
+
+\NormalTok{rr }\OperatorTok{=}\NormalTok{ MultivariateStats.}\FunctionTok{ridge}\NormalTok{(library\_data, target\_data, λ\_ridge, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
+\NormalTok{pp\_rr }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(rr, library\_names)}
+
+\NormalTok{sr }\OperatorTok{=} \FunctionTok{sparse\_representation}\NormalTok{(times, target\_data, library\_data, λ\_sparse }\OperatorTok{=}\NormalTok{ λ\_sparse, λ\_ridge }\OperatorTok{=}\NormalTok{ λ\_ridge)}
+\NormalTok{pp\_sr }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(sr, library\_names)}
+
+\NormalTok{md}\StringTok{"""}
+\SpecialCharTok{\textbackslash{}b}\StringTok{egin\{subequations\} \textbackslash{}label\{eq:f{-}simple{-}1{-}sparse\}}
+\SpecialCharTok{\textbackslash{}b}\StringTok{egin\{align\} }
+\StringTok{  \textbackslash{}mathrm\{llsq\} \&= }\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp\_ls, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw, fmt  }\OperatorTok{=} \FunctionTok{FancyNumberFormatter}\NormalTok{(}\FloatTok{3}\NormalTok{)))}\StringTok{ }\SpecialCharTok{\textbackslash{}\textbackslash{}\textbackslash{}\textbackslash{}}
+\StringTok{  \textbackslash{}mathrm\{ridge\} \&= }\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp\_rr, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw, fmt  }\OperatorTok{=} \FunctionTok{FancyNumberFormatter}\NormalTok{(}\FloatTok{3}\NormalTok{)))}\StringTok{ }\SpecialCharTok{\textbackslash{}\textbackslash{}\textbackslash{}\textbackslash{}}
+\StringTok{  \textbackslash{}mathrm\{sparse\} \&= }\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp\_sr, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw, fmt  }\OperatorTok{=} \FunctionTok{FancyNumberFormatter}\NormalTok{(}\FloatTok{3}\NormalTok{)))}
+\SpecialCharTok{\textbackslash{}e}\StringTok{nd\{align\}}
+\SpecialCharTok{\textbackslash{}e}\StringTok{nd\{subequations\}}
+\StringTok{"""}
+\CommentTok{\# end}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{subequations} \label{eq:f-simple-1-sparse} \begin{align}    \mathrm{llsq} &= 0.124 \cdot 1 + 1.02 \cdot x -0.00307 \cdot x^{2} -0.001 \cdot x^{3} + 0.992 \cdot \sin\left( x \right) -0.0102 \cdot \cos\left( x \right) \\
+  \mathrm{ridge} &= 0.123 \cdot 1 + 1.02 \cdot x -0.00298 \cdot x^{2} -0.00131 \cdot x^{3} + 0.974 \cdot \sin\left( x \right) -0.00995 \cdot \cos\left( x \right) \\
+  \mathrm{sparse} &= 1 \cdot x + 1.01 \cdot \sin\left( x \right) \end{align} \end{subequations}
+
+As a first example, take \(f(x) = x + \sin(x) + \cos(x)^2\). We will add
+a small noise term to simulate real data.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{=}\NormalTok{ x }\OperatorTok{+} \FunctionTok{sin}\NormalTok{(x) }\OperatorTok{+} \FunctionTok{cos}\NormalTok{(x)}\OperatorTok{\^{}}\FloatTok{2}
+\NormalTok{x\_points }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\OperatorTok{{-}}\FloatTok{5}\NormalTok{, }\FloatTok{5}\NormalTok{, length }\OperatorTok{=} \FloatTok{100}\NormalTok{)}
+\NormalTok{f\_points }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{+} \FloatTok{0.2}\FunctionTok{*rand}\NormalTok{() for x }\KeywordTok{in}\NormalTok{ x\_points]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{itemize}
+\tightlist
+\item
+  Library functions
+\item
+  need ridge regression since not positive definite
+\end{itemize}
 
 \begin{figure}
     \centering
@@ -292,6 +418,36 @@ Assuming now that we
     \caption{test}
     \label{fig:test}
 \end{figure}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{let}
+\NormalTok{times }\OperatorTok{=}\NormalTok{ x\_points }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
+\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ f\_points}
+
+\NormalTok{library }\OperatorTok{=}\NormalTok{ [x }\OperatorTok{{-}\textgreater{}} \FloatTok{1.0}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{3}\NormalTok{, x }\OperatorTok{{-}\textgreater{}} \FunctionTok{sin}\NormalTok{(x), x }\OperatorTok{{-}\textgreater{}} \FunctionTok{cos}\NormalTok{(x)]}
+\NormalTok{library\_names }\OperatorTok{=}\NormalTok{ [}\StringTok{"1"}\NormalTok{, }\StringTok{"x"}\NormalTok{, }\StringTok{"x\^{}2"}\NormalTok{, }\StringTok{"x\^{}3"}\NormalTok{, }\StringTok{"sin(x)"}\NormalTok{, }\StringTok{"cos(x)"}\NormalTok{]}
+\NormalTok{library\_data }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f}\NormalTok{(t) for t }\KeywordTok{in}\NormalTok{ times, f }\KeywordTok{in}\NormalTok{ library]}
+
+\NormalTok{λ\_sparse }\OperatorTok{=} \FloatTok{0.5}
+\NormalTok{λ\_ridge }\OperatorTok{=} \FloatTok{0.1}
+
+\NormalTok{rr }\OperatorTok{=}\NormalTok{ MultivariateStats.}\FunctionTok{ridge}\NormalTok{(library\_data, target\_data, λ\_ridge, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
+\CommentTok{\# @info pretty\_print(rr, library\_names)}
+
+\NormalTok{sr }\OperatorTok{=} \FunctionTok{sparse\_representation}\NormalTok{(times, target\_data, library\_data, λ\_sparse }\OperatorTok{=}\NormalTok{ λ\_sparse, λ\_ridge }\OperatorTok{=}\NormalTok{ λ\_ridge)}
+\NormalTok{pp }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(sr, library\_names)}
+
+\NormalTok{md}\StringTok{"""}
+\SpecialCharTok{\textbackslash{}b}\StringTok{egin\{equation\}}
+\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw))}
+\SpecialCharTok{\textbackslash{}e}\StringTok{nd\{equation\}}
+\StringTok{"""}
+\KeywordTok{end}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{equation} 0.566 \cdot 1 + 1.0 \cdot x + 0.998 \cdot \sin\left( x \right) \end{equation}
 
 \subsection{SINDy}\label{sindy}
 
@@ -336,9 +492,9 @@ Blah blah \(sdfadf\) \begin{equation}
 F = ma
 \end{equation}
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, colframe=quarto-callout-tip-color-frame, breakable, bottomrule=.15mm, leftrule=.75mm, arc=.35mm, coltitle=black, rightrule=.15mm, titlerule=0mm, left=2mm, opacityback=0, colback=white, bottomtitle=1mm, title={Algorithm 1 (stock)}, toprule=.15mm, toptitle=1mm, opacitybacktitle=0.6]
+\begin{tcolorbox}[enhanced jigsaw, breakable, coltitle=black, toptitle=1mm, colbacktitle=quarto-callout-tip-color!10!white, bottomrule=.15mm, titlerule=0mm, opacityback=0, leftrule=.75mm, title={Algorithm 1 (stock)}, bottomtitle=1mm, arc=.35mm, colback=white, left=2mm, rightrule=.15mm, colframe=quarto-callout-tip-color-frame, toprule=.15mm, opacitybacktitle=0.6]
 
-\phantomsection\label{annotated-cell-6}%
+\phantomsection\label{annotated-cell-10}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \NormalTok{penguins }\OperatorTok{=} \FloatTok{1} \hspace*{\fill}\NormalTok{\circled{1}}

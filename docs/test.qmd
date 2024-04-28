@@ -17,6 +17,10 @@ format:
           \usepackage[left=2cm,right=2cm,top = 2cm,bottom = 2cm]{geometry}
           \usepackage[style=alphabetic]{biblatex}
     cite-method: biblatex
+# format:
+#   html:
+#     toc: true
+#     html-math-method: mathml
 bibliography: refs.bib
 engine: julia
 julia:
@@ -29,7 +33,7 @@ highlight-style: arrow
 ```{julia}
 #| output: false
 #| echo: false
-using DifferentialEquations
+include(joinpath(@__DIR__, "..", "sindy2.jl"))
 using CairoMakie; set_theme!(theme_latexfonts())
 ```
 
@@ -43,7 +47,7 @@ In this project, we investigated the application of *data discovery* algorithms 
     \dot{z} &= x y - (8 / 3) z .
 \end{align}
 \end{subequations}
-Trajectories $X(t) = (x(t), y(t), z(t))$ of this system are chaotic, making it difficult or impossible to propose a function that fits $X(t)$ directly. On the other hand, $\dot{X}$ is a low order polynomial function of $X(t)$ and hence should be much more tractable in principal. At the highest level, we therefore have the following problem: given numerical trajectories $\{x(t_1), x(t_2), \dots \}$, compute numerically $\{\dot{x}(t_1), \dot{x}(t_2), \dots \}$ and attempt to find a parsimonious (equivalently: \emph{sparse}) combination of simple functions of the $x(t)$ that faithfully represents it. 
+Trajectories $X(t) = (x(t), y(t), z(t))$ of this system are chaotic, making it difficult or impossible to propose a function that fits $X(t)$ directly. On the other hand, $\dot{X}$ is a low order polynomial function of $X(t)$ and hence should be much more tractable in principle. At the highest level, we therefore have the following problem: given numerical trajectories $\{x(t_1), x(t_2), \dots \}$, compute numerically $\{\dot{x}(t_1), \dot{x}(t_2), \dots \}$ and attempt to find a parsimonious (equivalently: \emph{sparse}) combination of simple functions of the $x(t)$ that faithfully represents it. 
 
 This report contains embedded code from the [Julia](https://julialang.org/) programming language.
 
@@ -51,24 +55,167 @@ This report contains embedded code from the [Julia](https://julialang.org/) prog
 
 ## Sparse representations
 
-Suppose that several values of a function of $f : \mathbb{R} \to \mathbb{R}$ are observed, $\{f(x_1), f(x_2), \dots \}$. A \emph{sparse representation} seeks to represent $f$ as a linear combination of elementary functions of $x$ that contains as few terms as possible while still faithfully representing the behavior of $f$. As a first example, take $f(x) = x + 2x^2 + 5x^3$. We will add a small noise term to simulate real data.
+Suppose that several values of a function of $f : \mathbb{R} \to \mathbb{R}$ are observed, $\{f(x_1), f(x_2), \dots \}$. A \emph{sparse representation} seeks to represent $f$ as a linear combination of elementary functions of $x$ that contains as few terms as possible while still faithfully representing the behavior of $f$. As a first example, take $f(x) = x + \sin(x)$. We will add a small noise term to simulate real data. This is shown in Figure \ref{fig:f-1}.
 
 ```{julia}
 #| output: false
-f_simple(x) = x^2 + 2x^2 + 5x^2
-x_points = range(0, 1, length = 10)
-f_points = [f_simple(x) + 0.1*rand() for x in x_points]
+f_simple_1(x) = x + sin(x)
+x_points_1 = range(-5, 5, length = 20) |> collect
+f_points_1 = [f_simple_1(x) + 0.2*rand() for x in x_points_1]
 ```
-
-Assuming now that we 
 
 ```{julia}
 #| output: false
 #| echo: false
 let
 fig = Figure(fontsize = 25)
-ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f(x)", aspect = AxisAspect(1))
-scatter!(ax, x_points, f_points)
+ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f(x) = x + \sin(x)", aspect = AxisAspect(1))
+scatter!(ax, x_points_1, f_points_1, color = :black,  markersize = 15)
+save(joinpath(@__DIR__, "figures", "f-1.png"), fig)
+end
+```
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/f-1.png}
+    \caption{A simple data set from a scalar function.}
+    \label{fig:f-1}
+\end{figure}
+
+Assuming now that we are given this data with no knowledge of the underlying mechanics, how could this function be represented? Due to the oscillatory nature of the function, we might assume that it may be some linear combination of simple polynomials and sinusoids. Provided this sort of "expert knowledge", we could propose a \emph{library} of functions $L(x)$ that constitute the set of all possible functions that we want to include in our model. In our case, we will take our library to be the vector
+\begin{equation}
+L(x) = (1, x, x^2, x^3, \sin x, \cos x).
+\end{equation}
+The problem is therefore to find a vector $\xi \in \mathbb{R}^7$ such that $f(x) \approx \xi \cdot L(x)$. To do this, we will construct an optimization problem whose solution is $\xi$ that takes all of our observational data into account. The \emph{library data} $\Theta$ is given by
+\begin{equation}
+\Theta(x) 
+= 
+\begin{pmatrix}
+L_1(x_1) & L_2(x_1) & \cdots & L_7(x_1) \\ 
+L_1(x_2) & L_2(x_2) & \cdots & L_7(x_2) \\
+\vdots   & \vdots   & \ddots & \vdots   \\
+L_1(x_N) & L_2(x_N) & \cdots & L_7(x_N) 
+\end{pmatrix}
+=
+\begin{pmatrix}
+1 & x_1 & \cdots & \cos(x_1) \\ 
+1 & x_2 & \cdots & \cos(x_2) \\
+\vdots   & \vdots   & \ddots & \vdots   \\
+1 & x_N & \cdots & \cos(x_N) 
+\end{pmatrix}.
+\end{equation}
+Given our \emph{target data} $F = (f(x_1), f(x_2), \dots)$, we naturally have the following optimization problem
+\begin{equation}
+\xi^\star = \underset{\xi \in \mathbb{R}^7}{\text{argmin}} \lVert F - \Theta \xi \rVert_{2} ,
+\end{equation}
+where $\Vert\cdot\rVert_2$ indicates the $L_2$ norm and where our final representation is $f(x) \approx L(x) \cdot \xi^\star$. This kind of simple problem is directly amenable to a linear least-squares solution.
+
+```{julia}
+#| output: false
+library_1 = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
+library_names_1 = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
+library_data_1 = [f(t) for t in x_points_1, f in library_1]
+
+ls_1 = MultivariateStats.llsq(library_data_1, f_points_1, bias = false)
+f_llsq_1(x) = sum(ls_1[i]*library_1[i](x) for i = 1:length(ls_1))
+```
+
+```{julia}
+#| echo: false
+let
+pp_ls = pretty_print(ls_1, library_names_1)
+
+md"""
+\begin{equation} \label{eq:f-simple-1-sparse}
+  f\_{\text{llsq}}(x) = $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3)))
+\end{equation}
+"""
+end
+```
+
+We can see that the fit produced is indeed quite good as in Figure \ref{fig:f-simple-llsq}.
+
+```{julia}
+#| output: false
+#| echo: false
+let
+x = x_points_1
+f = [f_llsq_1(x) for x in x_points_1]
+
+fig = Figure(fontsize = 25)
+ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f", aspect = AxisAspect(1))
+scatter!(ax, x_points_1, f_points_1, color = :black, markersize = 15, label = L"f(x)")
+lines!(ax, x, f, color = :red,  linewidth = 4, label = L"f_{\text{llsq}}(x)")
+axislegend(ax, position = :lt)
+save(joinpath(@__DIR__, "figures", "f-1-llsq.png"), fig)
+end
+```
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/f-1-llsq.png}
+    \caption{The linear least squares result.}
+    \label{fig:f-simple-llsq}
+\end{figure}
+
+However, $f_{\text{llsq}}$ is not sparse, that is, it contains more terms than it necessarily needs to and, in particular, many terms that have small coefficients. 
+
+\clearpage
+
+```{julia}
+# let
+times = x_points_1 |> collect
+target_data = f_points_1
+
+library = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
+library_names = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
+library_data = [f(t) for t in times, f in library]
+
+λ_sparse = 0.5
+λ_ridge = 0.1
+
+ls = MultivariateStats.llsq(library_data, target_data, bias = false)
+pp_ls = pretty_print(ls, library_names)
+
+rr = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
+pp_rr = pretty_print(rr, library_names)
+
+sr = sparse_representation(times, target_data, library_data, λ_sparse = λ_sparse, λ_ridge = λ_ridge)
+pp_sr = pretty_print(sr, library_names)
+
+md"""
+\begin{subequations} \label{eq:f-simple-1-sparse}
+\begin{align} 
+  \mathrm{llsq} &= $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+  \mathrm{ridge} &= $(latexify(pp_rr, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+  \mathrm{sparse} &= $(latexify(pp_sr, env = :raw, fmt  = FancyNumberFormatter(3)))
+\end{align}
+\end{subequations}
+"""
+# end
+```
+
+As a first example, take $f(x) = x + \sin(x) + \cos(x)^2$. We will add a small noise term to simulate real data.
+
+```{julia}
+#| output: false
+f_simple(x) = x + sin(x) + cos(x)^2
+x_points = range(-5, 5, length = 100)
+f_points = [f_simple(x) + 0.2*rand() for x in x_points]
+```
+
+
+
+- Library functions
+- need ridge regression since not positive definite
+
+```{julia}
+#| output: false
+#| echo: false
+let
+fig = Figure(fontsize = 25)
+ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f(x) = x + \sin(x) + \cos(x)^2", aspect = AxisAspect(1))
+scatter!(ax, x_points, f_points, color = :black,  markersize = 15)
 save(joinpath(@__DIR__, "figures", "test.png"), fig)
 end
 ```
@@ -79,6 +226,33 @@ end
     \caption{test}
     \label{fig:test}
 \end{figure}
+
+```{julia}
+let
+times = x_points |> collect
+target_data = f_points
+
+library = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
+library_names = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
+library_data = [f(t) for t in times, f in library]
+
+λ_sparse = 0.5
+λ_ridge = 0.1
+
+rr = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
+# @info pretty_print(rr, library_names)
+
+sr = sparse_representation(times, target_data, library_data, λ_sparse = λ_sparse, λ_ridge = λ_ridge)
+pp = pretty_print(sr, library_names)
+
+md"""
+\begin{equation}
+$(latexify(pp, env = :raw))
+\end{equation}
+"""
+end
+```
+
 
 ## SINDy
 

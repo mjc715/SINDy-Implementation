@@ -1,10 +1,33 @@
 using DifferentialEquations
 using Interpolations
 import MultivariateStats
+import Random
 using Markdown
+using Latexify
+
+function pretty_print(coeffs::Vector{<:Real}, library_names::Vector{String})
+    @assert length(coeffs) == length(library_names)
+
+    nums = string.(round.(coeffs, sigdigits = 3))
+    output_string = ""
+    for i = 1:length(nums)
+        if nums[i] != "0.0"
+            output_string *= nums[i] * "*" * library_names[i] * " + "
+        end
+    end
+
+    output_string = output_string[1:end-3]
+
+    return output_string
+end
+
+function pretty_print(coeffs::Vector{<:Vector{<:Real}}, library_names::Vector{String})
+    return [pretty_print(coeffs[coeff], library_names) for coeff in coeffs]
+end
+
 
 """
-    sparse_representation(times, target_data, library_data; λ_sparse, λ_ridge, max_iters, library_names, pretty_print)
+    sparse_representation(times, target_data, library_data; λ_sparse, λ_ridge, max_iters)
 """
 function sparse_representation(
     times::Vector{<:Real},
@@ -12,11 +35,9 @@ function sparse_representation(
     library_data::Matrix{<:Real};
     λ_sparse::Real = 0.1,
     λ_ridge::Real = 0.0, 
-    max_iters::Integer = 10,
-    library_names::Union{Vector{String}, Nothing} = nothing, 
-    pretty_print::Bool = library_names !== nothing)
+    max_iters::Integer = 10)
 
-    @assert all([length(times) > 0, length(target_data) > 0, length(library) > 0])
+    @assert all([length(times) > 0, length(target_data) > 0, length(library_data) > 0])
     @assert all(λ_sparse .> 0)
     @assert max_iters > 0
     @assert length(times) == length(target_data)
@@ -25,28 +46,13 @@ function sparse_representation(
     Xi = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
     
     for _ in 1:max_iters
-    
         smallinds = findall(p -> abs(p) < λ_sparse, Xi) # library functions with small coefficients
         Xi[smallinds] .= 0
         biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
         Xi[biginds] = MultivariateStats.ridge(library_data[:, biginds], target_data, λ_ridge, bias = false)
     end
-    
-    if pretty_print && library_names !== nothing
-        nums = string.(round.(Xi, sigdigits = 3)) .|> x -> "[$x]"
-        output_string = ""
-        for i = 1:length(nums)
-            if nums[i] != "[0.0]"
-                output_string *= nums[i] * library_names[i] * " + "
-            end
-        end
-    
-        output_string = output_string[1:end-3]
 
-        return output_string
-    else
-        return Xi
-    end
+    return Xi
 end
 
 function sparse_representation(
@@ -55,9 +61,7 @@ function sparse_representation(
     library_data::Matrix{<:Real};
     λ_sparse::Real = 0.1, 
     λ_ridge::Real = 0.0, 
-    max_iters::Integer = 10,
-    library_names::Union{Vector{String}, Nothing} = nothing, 
-    pretty_print::Bool = library_names !== nothing)
+    max_iters::Integer = 10)
 
     @assert size(target_data, 1) == length(times)
 
@@ -66,9 +70,7 @@ function sparse_representation(
         sr = sparse_representation(times, target_data[:, i], library_data, 
             λ_sparse = λ_sparse, 
             λ_ridge = λ_ridge,
-            max_iters = max_iters, 
-            library_names = library_names, 
-            pretty_print = pretty_print)
+            max_iters = max_iters)
         push!(Xi, sr)
     end
 
@@ -133,9 +135,7 @@ function sindy(
     order::Integer = 1,
     λ_sparse::Real = 0.1, 
     λ_ridge::Real = 0.0, 
-    max_iters::Integer = 10,
-    library_names::Union{Vector{String}, Nothing} = nothing, 
-    pretty_print::Bool = true)
+    max_iters::Integer = 10)
     
     @assert order in [1, 2]
 
@@ -154,7 +154,5 @@ function sindy(
     return sparse_representation(times, target_data, library_data, 
         λ_sparse = λ_sparse, 
         λ_ridge = λ_ridge,
-        max_iters = max_iters, 
-        library_names = library_names,
-        pretty_print = pretty_print)
+        max_iters = max_iters)
 end
