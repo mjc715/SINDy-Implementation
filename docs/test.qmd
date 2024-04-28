@@ -59,9 +59,10 @@ Suppose that several values of a function of $f : \mathbb{R} \to \mathbb{R}$ are
 
 ```{julia}
 #| output: false
+Random.seed!(1234)
 f_simple_1(x) = x + sin(x)
-x_points_1 = range(-5, 5, length = 20) |> collect
-f_points_1 = [f_simple_1(x) + 0.2*rand() for x in x_points_1]
+x_points_f_simple = range(-5, 5, length = 20) |> collect
+f_simple_points = [f_simple_1(x) + 0.2*rand() for x in x_points_f_simple]
 ```
 
 ```{julia}
@@ -70,7 +71,7 @@ f_points_1 = [f_simple_1(x) + 0.2*rand() for x in x_points_1]
 let
 fig = Figure(fontsize = 25)
 ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f(x) = x + \sin(x)", aspect = AxisAspect(1))
-scatter!(ax, x_points_1, f_points_1, color = :black,  markersize = 15)
+scatter!(ax, x_points_f_simple, f_simple_points, color = :black,  markersize = 15)
 save(joinpath(@__DIR__, "figures", "f-1.png"), fig)
 end
 ```
@@ -114,10 +115,13 @@ where $\Vert\cdot\rVert_2$ indicates the $L_2$ norm and where our final represen
 #| output: false
 library_1 = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
 library_names_1 = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
-library_data_1 = [f(t) for t in x_points_1, f in library_1]
+library_data_1 = [f(t) for t in x_points_f_simple, f in library_1]
 
-ls_1 = MultivariateStats.llsq(library_data_1, f_points_1, bias = false)
+ls_1 = llsq(library_data_1, f_simple_points, bias = false)
 f_llsq_1(x) = sum(ls_1[i]*library_1[i](x) for i = 1:length(ls_1))
+
+f_simple_pred = library_data_1 * ls_1
+rmse_1 = sqrt(mean(abs2.(f_simple_points - f_simple_pred)))
 ```
 
 ```{julia}
@@ -126,25 +130,30 @@ let
 pp_ls = pretty_print(ls_1, library_names_1)
 
 md"""
-\begin{equation} \label{eq:f-simple-1-sparse}
-  f\_{\text{llsq}}(x) = $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3)))
-\end{equation}
+\begin{subequations} \label{eq:f-1-llsq}
+\begin{align} 
+  f\_{\text{llsq}}(x) &= $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+  \text{RMSE}[f\_{\text{llsq}}] &= $(latexify(rmse_1, env = :raw, fmt  = FancyNumberFormatter(3)))
+\end{align}
+\end{subequations}
 """
 end
 ```
 
-We can see that the fit produced is indeed quite good as in Figure \ref{fig:f-simple-llsq}.
+
+
+We can see that the fit produced is indeed quite good as in Figure \ref{fig:f-1-llsq}.
 
 ```{julia}
 #| output: false
 #| echo: false
 let
-x = x_points_1
-f = [f_llsq_1(x) for x in x_points_1]
+x = x_points_f_simple
+f = [f_llsq_1(x) for x in x_points_f_simple]
 
 fig = Figure(fontsize = 25)
 ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f", aspect = AxisAspect(1))
-scatter!(ax, x_points_1, f_points_1, color = :black, markersize = 15, label = L"f(x)")
+scatter!(ax, x_points_f_simple, f_simple_points, color = :black, markersize = 15, label = L"f(x)")
 lines!(ax, x, f, color = :red,  linewidth = 4, label = L"f_{\text{llsq}}(x)")
 axislegend(ax, position = :lt)
 save(joinpath(@__DIR__, "figures", "f-1-llsq.png"), fig)
@@ -155,17 +164,151 @@ end
     \centering
     \includegraphics[width = 0.5\textwidth]{figures/f-1-llsq.png}
     \caption{The linear least squares result.}
-    \label{fig:f-simple-llsq}
+    \label{fig:f-1-llsq}
 \end{figure}
 
-However, $f_{\text{llsq}}$ is not sparse, that is, it contains more terms than it necessarily needs to and, in particular, many terms that have small coefficients. 
+However, $f_{\text{llsq}}$ is not sparse, that is, it contains more terms than it necessarily needs to and, in particular, many terms that have small coefficients. Examining Eq. \eqref{eq:f-1-llsq}, we see that the coefficient of $x^3$ is very small. We might therefore try removing it from the library and applying another linear least-squares fit.
+
+```{julia}
+#| output: false
+library_2 = [x -> 1.0, x -> x, x -> x^2, x -> sin(x), x -> cos(x)]
+library_names_2 = ["1", "x", "x^2", "sin(x)", "cos(x)"]
+library_data_2 = [f(t) for t in x_points_f_simple, f in library_2]
+
+ls_2 = llsq(library_data_2, f_simple_points, bias = false)
+f_llsq_2(x) = sum(ls_2[i]*library_2[i](x) for i = 1:length(ls_2))
+
+f_simple_pred = library_data_2 * ls_2
+rmse_2 = sqrt(mean(abs2.(f_simple_points - f_simple_pred)))
+```
+
+```{julia}
+#| echo: false
+let
+pp_ls = pretty_print(ls_2, library_names_2)
+
+md"""
+\begin{subequations} \label{eq:f-2-llsq}
+\begin{align} 
+  f\_{\text{llsq, 2}}(x) &= $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+    \text{RMSE}[f\_{\text{llsq}}] &= $(latexify(rmse_2, env = :raw, fmt  = FancyNumberFormatter(3)))
+\end{align}
+\end{subequations}
+"""
+end
+```
+
+This has produced a more parsimonious representation, and Figure \ref{fig:f-2-llsq} shows that the quality of the fit is still excellent. 
+
+```{julia}
+#| output: false
+#| echo: false
+let
+x = x_points_f_simple
+f1 = [f_llsq_1(x) for x in x_points_f_simple]
+f2 = [f_llsq_2(x) for x in x_points_f_simple]
+
+fig = Figure(fontsize = 25)
+ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f", aspect = AxisAspect(1))
+scatter!(ax, x_points_f_simple, f_simple_points, color = :black, markersize = 15, label = L"f(x)")
+lines!(ax, x, f1, color = :red,  linewidth = 4, label = L"f_{\text{llsq}}(x)")
+lines!(ax, x, f2, color = :blue,  linewidth = 4, label = L"f_{\text{llsq, 2}}(x)")
+axislegend(ax, position = :lt)
+save(joinpath(@__DIR__, "figures", "f-2-llsq.png"), fig)
+end
+```
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/f-2-llsq.png}
+    \caption{The more parsimonious linear least-squares result.}
+    \label{fig:f-2-llsq}
+\end{figure}
+
+Note that Eqs. \eqref{eq:f-1-llsq} and \eqref{eq:f-2-llsq} show that the RSME has increased by a negligible amount. This calculation contains the essence of the basic sparse representation algorithm: iteratively regress library functions onto the target data and remove small coefficients. 
+
+Before moving on, we will consider one more example which demonstrates the need for a more advanced regression tool than the basic linear least-squares. In this case we will take $g(x) = x + \sin(x) + \cos(x)^2$, see Figure \ref{fig:g-1}. We will therefore augment our library with squared sinusoids.
+
+```{julia}
+#| output: false
+Random.seed!(1234)
+g_simple(x) = x + sin(x) + cos(x)^2
+x_points_g = range(-5, 5, length = 20) |> collect
+g_points = [g_simple(x) + 0.2*rand() for x in x_points_g]
+```
+
+
+```{julia}
+#| output: false
+#| echo: false
+let
+fig = Figure(fontsize = 25)
+ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"g(x) = x + \sin(x) + \cos^2(x)", aspect = AxisAspect(1))
+scatter!(ax, x_points_g, g_points, color = :black,  markersize = 15)
+save(joinpath(@__DIR__, "figures", "g-1.png"), fig)
+end
+```
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 0.5\textwidth]{figures/g-1.png}
+    \caption{A simple data set from a scalar function.}
+    \label{fig:g-1}
+\end{figure}
+
+Provisionally, we might attempt the following solution as per the earlier calculations.
+
+```{julia}
+#| output: false
+library = [
+  x -> 1.0, x -> x, x -> x^2, x -> x^3, 
+  x -> sin(x), x -> cos(x), 
+  x -> sin(x)^2, x -> cos(x)^2]
+library_names_1 = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)", "sin(x)^2", "cos(x)^2"]
+library_data_1 = [f(t) for t in x_points_g, f in library]
+
+# llsq(library_data_1, g_sample_points, bias = false) # will error!
+```
+
+The above computation will result in an error on the `llsq` calculation. The culprit is the functions $\sin^2(x)$ and $\cos^2(x)$; they are linearly dependent due to $\sin^2(x) + \cos^2(x) = 1$. The net result is that the library data matrix is ill-conditioned for basic least-squares. Furthermore, in the general case, we do not know which of $\sin^2(x)$ or $\cos^2(x)$ will be the appropriate function and hence would like to include both and have the optimization sort out the details for us. One popular solution to this issue is \emph{ridge regression} \cite{hoerl1970ridge} which introduces an additional parameter $\lambda$ and considers the optimization problem
+\begin{equation}
+\xi^\star = \underset{\xi}{\text{argmin}}\bigg[ \lVert F - \Theta \xi \rVert_{2} + \lambda \lVert I \xi \rVert_{2} \bigg],
+\end{equation}
+where $I$ is the identity matrix. We can apply that
+
+```{julia}
+#| output: false
+rr_g = llsq(library_data_2, f_simple_points, bias = false)
+f_llsq_2(x) = sum(rr_g[i]*library_2[i](x) for i = 1:length(rr_g))
+
+f_simple_pred = library_data_2 * rr_g
+rmse_2 = sqrt(mean(abs2.(f_simple_points - f_simple_pred)))
+```
+
+```{julia}
+#| echo: false
+let
+pp_ls = pretty_print(rr_g, library_names_2)
+
+md"""
+\begin{subequations} \label{eq:f-2-llsq}
+\begin{align} 
+  f\_{\text{llsq, 2}}(x) &= $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+    \text{RMSE}[f\_{\text{llsq}}] &= $(latexify(rmse_2, env = :raw, fmt  = FancyNumberFormatter(3)))
+\end{align}
+\end{subequations}
+"""
+end
+```
+
+
 
 \clearpage
 
 ```{julia}
 # let
-times = x_points_1 |> collect
-target_data = f_points_1
+times = x_points_f_simple |> collect
+target_data = f_simple_points
 
 library = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
 library_names = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
@@ -174,10 +317,10 @@ library_data = [f(t) for t in times, f in library]
 λ_sparse = 0.5
 λ_ridge = 0.1
 
-ls = MultivariateStats.llsq(library_data, target_data, bias = false)
+ls = llsq(library_data, target_data, bias = false)
 pp_ls = pretty_print(ls, library_names)
 
-rr = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
+rr = ridge(library_data, target_data, λ_ridge, bias = false)
 pp_rr = pretty_print(rr, library_names)
 
 sr = sparse_representation(times, target_data, library_data, λ_sparse = λ_sparse, λ_ridge = λ_ridge)
@@ -239,7 +382,7 @@ library_data = [f(t) for t in times, f in library]
 λ_sparse = 0.5
 λ_ridge = 0.1
 
-rr = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
+rr = ridge(library_data, target_data, λ_ridge, bias = false)
 # @info pretty_print(rr, library_names)
 
 sr = sparse_representation(times, target_data, library_data, λ_sparse = λ_sparse, λ_ridge = λ_ridge)

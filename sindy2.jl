@@ -1,6 +1,6 @@
 using DifferentialEquations
 using Interpolations
-import MultivariateStats
+using MultivariateStats: llsq, ridge, mean
 import Random
 using Markdown
 using Latexify
@@ -43,13 +43,13 @@ function sparse_representation(
     @assert length(times) == length(target_data)
     @assert length(times) == size(library_data, 1)
 
-    Xi = MultivariateStats.ridge(library_data, target_data, λ_ridge, bias = false)
+    Xi = ridge(library_data, target_data, λ_ridge, bias = false)
     
     for _ in 1:max_iters
         smallinds = findall(p -> abs(p) < λ_sparse, Xi) # library functions with small coefficients
         Xi[smallinds] .= 0
         biginds = [i for i = 1:length(Xi) if !(i in smallinds)]
-        Xi[biginds] = MultivariateStats.ridge(library_data[:, biginds], target_data, λ_ridge, bias = false)
+        Xi[biginds] = ridge(library_data[:, biginds], target_data, λ_ridge, bias = false)
     end
 
     return Xi
