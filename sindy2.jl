@@ -25,6 +25,9 @@ function pretty_print(coeffs::Vector{<:Vector{<:Real}}, library_names::Vector{St
     return [pretty_print(coeffs[coeff], library_names) for coeff in coeffs]
 end
 
+function pretty_print(coeffs::Matrix{<:Real}, library_names::Vector{String})
+    return [pretty_print(coeffs[:,i], library_names) for i = 1:size(coeffs, 2)]
+end
 
 """
     sparse_representation(times, target_data, library_data; λ_sparse, λ_ridge, max_iters)

@@ -12,8 +12,7 @@ format:
     colorlinks: true
     include-in-header:
       - text: |
-          \usepackage{algorithm}
-          \usepackage{algpseudocode}
+          \usepackage[ruled,vlined]{algorithm2e}
           \usepackage[left=2cm,right=2cm,top = 2cm,bottom = 2cm]{geometry}
           \usepackage[style=alphabetic]{biblatex}
     cite-method: biblatex
@@ -39,7 +38,7 @@ using CairoMakie; set_theme!(theme_latexfonts())
 
 # Summary of work
 
-In this project, we investigated the application of *data discovery* algorithms to learn the governing equations for a dynamical system from numerical realizations of their trajectories. We apply the sparse identification of nonlinear dynamics (``SINDy") as originally proposed in \cite{brunton2016discovering} as well as a number of its extensions. The core idea behind these algorithms is that many dynamical systems in science are represented by differential equation systems $\dot{x} = f(x)$ where $f(x)$ often a linear combination of a small number of elementary functions. By contrast, the trajectories $x(t)$ may be extremely complicated and ill-suited to direct fitting. Consider the classic Lorenz system
+In this project, we investigated the application of *data discovery* algorithms to learn the governing equations for a dynamical system from numerical realizations of their trajectories. We apply the sparse identification of nonlinear dynamics (``SINDy") as originally proposed in \cite{brunton2016discovering} as well as a number of its extensions. The core idea behind these algorithms is that many dynamical systems in science are represented by differential equation systems $\dot{x} = f(x)$ where $f(x)$ is  often a linear combination of a small number of elementary functions. By contrast, the trajectories $x(t)$ may be extremely complicated and ill-suited to direct fitting. Consider the classic Lorenz system
 \begin{subequations} \label{eq:lorenz-def}
 \begin{align} 
     \dot{x} &= 10 (y - x), \\
@@ -80,7 +79,7 @@ f_simple_points = [f_simple(x) + 0.2*rand() for x in x_points_f_simple]
 \end{subfigure}
         
 \caption{Fitting of two simple functions using linear least-squares and ridge regression.}
-\label{fig:fig-sparse-motivation}
+\label{fig:sparse-motivation}
 \end{figure}
 
 Assuming now that we are given this data with no knowledge of the underlying mechanics, how could this function be represented? Due to the oscillatory nature of the function, we might assume that it may be some linear combination of simple polynomials and sinusoids. Provided this sort of "expert knowledge", we could propose a \emph{library} of functions $L(x)$ that constitute the set of all possible functions that we want to include in our model. In our case, we will take our library to be the vector
@@ -172,7 +171,7 @@ md"""
 end
 ```
 
-This has produced a more parsimonious representation comparing Eqs. \eqref{eq:f-1-llsq} and \eqref{eq:f-2-llsq} shows that the RSME has increased by a negligible amount. 
+This has produced a more parsimonious representation and comparing Eqs. \eqref{eq:f-1-llsq} and \eqref{eq:f-2-llsq} shows that the RSME has increased by a negligible amount. 
 
 ```{julia}
 #| output: false
@@ -216,7 +215,7 @@ library_data = [f(t) for t in x_points_g, f in library]
 # llsq(library_data, g_sample_points, bias = false) # will error!
 ```
 
-The above computation will result in an error on the `llsq` calculation. The culprits are the functions $\sin^2(x)$ and $\cos^2(x)$; they are linearly dependent due to $\sin^2(x) + \cos^2(x) = 1$. The net result is that the library data matrix is ill-conditioned for basic least-squares. One might wonder why we would include both $\sin^2(x)$ and $cos^2(x)$ in the first place. Here we should recall that the general problem is to find the sparsest representation, i.e. if we can use $\cos^2(x)$ rather than $\sin^2(x) - 1$, this is preferable. One popular solution to the issue of linearly dependent library data is \emph{ridge regression} \cite{hoerl1970ridge} which introduces an additional parameter $\lambda$ and considers the optimization problem
+The above computation will result in an error on the `llsq` calculation. The culprits are the functions $\sin^2(x)$ and $\cos^2(x)$; they are linearly dependent due to $\sin^2(x) + \cos^2(x) = 1$. The net result is that the library data matrix is ill-conditioned for basic least-squares. One might wonder why we would include both $\sin^2(x)$ and $\cos^2(x)$ in the first place. Here we should recall that the general problem is to find the sparsest representation, i.e. if we can use $\cos^2(x)$ rather than $\sin^2(x) - 1$, this is preferable. One popular solution to the issue of linearly dependent library data is \emph{ridge regression} \cite{hoerl1970ridge} which introduces an additional parameter $\lambda$ and considers the optimization problem
 \begin{equation}
 \xi^\star = \underset{\xi}{\text{argmin}}\bigg[ \lVert F - \Theta \xi \rVert_{2} + \lambda \lVert I \xi \rVert_{2} \bigg],
 \end{equation}
@@ -266,123 +265,123 @@ save(joinpath(@__DIR__, "figures", "g-ridge.png"), fig)
 end
 ```
 
-We obtain a good fit as shown in Figure \ref{fig:g-ridge}, but it is not sparse. With these motivating examples in hand, we can outline the \emph{sequentially-thresholded ridge regression} algorithm.
+We obtain a good fit as shown in Figure \ref{fig:g-ridge}, but it is not sparse. With these motivating examples in hand, we can outline the \emph{sequentially-thresholded ridge regression} (STRidge) algorithm. 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-\clearpage
+::: {.callout-tip icon=false}
+## STRidge algorithm for sparse representation (Julia implementation)
 
 ```{julia}
-# let
-times = x_points_f_simple |> collect
-target_data = f_simple_points
+#| output: false
+#| label: stridge
+function STRidge(
+  target_data::Vector{<:Real}, # <1>
+  library_data::Matrix{<:Real}; # <2>
+  lambda_sparse::Real = 0.1, # <3>
+  lambda_ridge::Real = 0.1, # <4>
+  max_iters::Integer = 10)
 
-library = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
-library_names = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
-library_data = [f(t) for t in times, f in library]
+  rr(data) = ridge(data, target_data, lambda_ridge, bias = false) # <5>
+  Xi = rr(library_data)
 
-λ_sparse = 0.5
-λ_ridge = 0.1
+  for _ in 1:max_iters
+      smallinds = findall(p -> abs(p) < lambda_sparse, Xi)
+      Xi[smallinds] .= 0
+      biginds = setdiff(1:length(Xi), smallinds)
+      Xi[biginds] = rr(library_data[:, biginds])
+  end
 
-ls = llsq(library_data, target_data, bias = false)
-pp_ls = pretty_print(ls, library_names)
+  return Xi
+end
+```
+1. `target_data` is a vector of function (observation) values of length $N$.
+2. `library_data` is a matrix with a number of columns equal to the number of library functions. Then, each column has $N$ rows, one for the library function evaluated at each observation.
+3. `lambda_sparse` is the threshold below which library coefficients are set equal to zero.
+4. `lambda_ridge` is the ridge regression regularization parameter.
+5. `ridge` is an implementation the ridge regression algorithm from [`MultivariateStats.jl`](https://juliastats.org/MultivariateStats.jl/stable/lreg/#Ridge-Regression).
+:::
 
-rr = ridge(library_data, target_data, λ_ridge, bias = false)
-pp_rr = pretty_print(rr, library_names)
+We see that the core idea behind the `STRidge` function is simply to iteratively threshold small library coefficients and ridge regress the remaining library functions onto the target data. Let us apply this to the $g(x) = x + \sin(x) + \cos^2(x)$ case as above.
 
-sr = sparse_representation(times, target_data, library_data, λ_sparse = λ_sparse, λ_ridge = λ_ridge)
-pp_sr = pretty_print(sr, library_names)
+```{julia}
+#| output: false
+g_strr = STRidge(g_points, library_data, lambda_sparse = 0.3, lambda_ridge = 0.1)
+```
+
+```{julia}
+#| echo: false
+let
+pp = pretty_print(g_strr, library_names)
 
 md"""
-\begin{subequations} \label{eq:f-simple-1-sparse}
+\begin{subequations} \label{eq:g-strr}
 \begin{align} 
-  \mathrm{llsq} &= $(latexify(pp_ls, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
-  \mathrm{ridge} &= $(latexify(pp_rr, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
-  \mathrm{sparse} &= $(latexify(pp_sr, env = :raw, fmt  = FancyNumberFormatter(3)))
+  g\_{\text{strr}}(x) &= $(latexify(pp, env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+    \text{RMSE}[g\_{\text{strr}}] &= $(latexify(rmse, env = :raw, fmt  = FancyNumberFormatter(3)))
 \end{align}
 \end{subequations}
 """
-# end
-```
-
-As a first example, take $f(x) = x + \sin(x) + \cos(x)^2$. We will add a small noise term to simulate real data.
-
-```{julia}
-#| output: false
-f_simple(x) = x + sin(x) + cos(x)^2
-x_points = range(-5, 5, length = 100)
-f_points = [f_simple(x) + 0.2*rand() for x in x_points]
-```
-
-
-
-- Library functions
-- need ridge regression since not positive definite
-
-```{julia}
-#| output: false
-#| echo: false
-let
-fig = Figure(fontsize = 25)
-ax = Axis(fig[1, 1], xlabel = L"x", ylabel = L"f(x) = x + \sin(x) + \cos(x)^2", aspect = AxisAspect(1))
-scatter!(ax, x_points, f_points, color = :black,  markersize = 15)
-save(joinpath(@__DIR__, "figures", "test.png"), fig)
 end
 ```
 
-\begin{figure}
-    \centering
-    \includegraphics[width = 0.5\textwidth]{figures/test.png}
-    \caption{test}
-    \label{fig:test}
-\end{figure}
+Comparing Eq. \eqref{eq:g-strr} to \eqref{eq:g-ridge} shows that the `STRidge` algorithm has resulted in a significantly more sparse representation without increasing the rmse appreciably. Note that $\lambda_\text{sparse}$ and $\lambda_\text{ridge}$ are not prescribed currently. One has to choose their values judiciously to simultaneously remove small terms and avoid removing large terms.
+
+We will address one final issue before proceding to our discussion of SINDy. What if the target data or observations are multidimensional? As we are restricting our focus to dynamical systems, multidimensional observations require no further calculation as all coordinates will be functions of time. For example, a function such as $f(x, y) = x^2 + y^2$ can be sparely represented by using library functions such as $x(t), x^2(t) \dots, y(t), y^2(t), \dots$ which amounts to increasing the number of columns in $\Theta$. To handle multidimensional observations, we simply apply the `STRidge` algorithm to each dimension of the target data. 
+
+::: {.callout-tip icon=false}
+## STRidge algorithm extension to multidimensional observations (Julia implementation)
 
 ```{julia}
+#| output: false
+#| label: stridge-vec
+function STRidge(
+  target_data::Matrix{<:Real}, # <1>
+  library_data::Matrix{<:Real}; 
+  lambda_sparse::Real = 0.1,
+  lambda_ridge::Real = 0.1,
+  max_iters::Integer = 10)
+
+    Xi = zeros(size(library_data, 2), size(target_data, 2))
+    for i = 1:size(target_data, 2)
+        sr = STRidge(target_data[:, i], library_data, 
+            lambda_sparse = lambda_sparse, 
+            lambda_ridge = lambda_ridge,
+            max_iters = max_iters) # <2>
+        Xi[:,i] .= sr
+    end
+
+    return Xi
+end
+```
+1. `target_data` is a now a matrix with $N$ rows and a number of columns equal to the dimension of the target.
+2. We call the scalar version of `STRidge` on each column of `target_data`.
+:::
+
+We will apply this to multidimensional target data using our $f(x)$ and $g(x)$ functions of Figure \ref{fig:sparse-motivation}.
+
+```{julia}
+#| output: false
+target_data = [f_simple_points ;; g_points]
+fg_strr = STRidge(target_data, library_data, lambda_sparse = 0.3, lambda_ridge = 0.1)
+```
+
+```{julia}
+#| echo: false
 let
-times = x_points |> collect
-target_data = f_points
-
-library = [x -> 1.0, x -> x, x -> x^2, x -> x^3, x -> sin(x), x -> cos(x)]
-library_names = ["1", "x", "x^2", "x^3", "sin(x)", "cos(x)"]
-library_data = [f(t) for t in times, f in library]
-
-λ_sparse = 0.5
-λ_ridge = 0.1
-
-rr = ridge(library_data, target_data, λ_ridge, bias = false)
-# @info pretty_print(rr, library_names)
-
-sr = sparse_representation(times, target_data, library_data, λ_sparse = λ_sparse, λ_ridge = λ_ridge)
-pp = pretty_print(sr, library_names)
+pp = pretty_print(fg_strr, library_names)
 
 md"""
-\begin{equation}
-$(latexify(pp, env = :raw))
-\end{equation}
+\begin{subequations} \label{eq:g-strr}
+\begin{align} 
+  f\_{\text{strr}}(x) &= $(latexify(pp[1], env = :raw, fmt  = FancyNumberFormatter(3))) \\\\
+  g\_{\text{strr}}(x) &= $(latexify(pp[2], env = :raw, fmt  = FancyNumberFormatter(3)))
+\end{align}
+\end{subequations}
 """
 end
 ```
 
+These are the correct sparse representations.
 
 ## SINDy
 
@@ -401,15 +400,6 @@ end
 ## Full
 
 # Conclusions
-
-
-```{julia}
-1 + 2
-```
-
-```{julia}
-1 + 2
-```
 
 
 <!-- ```{julia}
@@ -445,39 +435,4 @@ prob_vec = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0))
 sol_vec = solve(prob_vec)
 ``` -->
 
-Blah blah $sdfadf$
-\begin{equation}
-F = ma
-\end{equation}
 
-::: {.callout-tip icon=false}
-## Algorithm 1 (stock)
-
-```{julia}
-penguins = 1 # <1>
-penguins*2 # <2>
-```
-1. Take `penguins`, and then,
-2. add new columns for the bill ratio and bill area...
-:::
-
-
-\begin{algorithm}
-\caption{An algorithm with caption}\label{alg:cap}
-\begin{algorithmic}
-\Require $n \geq 0$
-\Ensure $y = x^n$
-\State $y \gets 1$
-\State $X \gets x$
-\State $N \gets n$
-\While{$N \neq 0$}
-\If{$N$ is even}
-    \State $X \gets X \times X$
-    \State $N \gets \frac{N}{2}$  \Comment{This is a comment}
-\ElsIf{$N$ is odd}
-    \State $y \gets y \times X$
-    \State $N \gets N - 1$
-\EndIf
-\EndWhile
-\end{algorithmic}
-\end{algorithm}

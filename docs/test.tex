@@ -130,8 +130,7 @@
 \def\fps@figure{htbp}
 \makeatother
 
-\usepackage{algorithm}
-\usepackage{algpseudocode}
+\usepackage[ruled,vlined]{algorithm2e}
 \usepackage[left=2cm,right=2cm,top = 2cm,bottom = 2cm]{geometry}
 \usepackage[style=alphabetic]{biblatex}
 \makeatletter
@@ -240,10 +239,11 @@ sparse identification of nonlinear dynamics (``SINDy'') as originally
 proposed in \cite{brunton2016discovering} as well as a number of its
 extensions. The core idea behind these algorithms is that many dynamical
 systems in science are represented by differential equation systems
-\(\dot{x} = f(x)\) where \(f(x)\) often a linear combination of a small
-number of elementary functions. By contrast, the trajectories \(x(t)\)
-may be extremely complicated and ill-suited to direct fitting. Consider
-the classic Lorenz system \begin{subequations} \label{eq:lorenz-def}
+\(\dot{x} = f(x)\) where \(f(x)\) is often a linear combination of a
+small number of elementary functions. By contrast, the trajectories
+\(x(t)\) may be extremely complicated and ill-suited to direct fitting.
+Consider the classic Lorenz system
+\begin{subequations} \label{eq:lorenz-def}
 \begin{align} 
     \dot{x} &= 10 (y - x), \\
     \dot{y} &= x (28 - z) - y, \\ 
@@ -300,7 +300,7 @@ data. This is shown in Figure \ref{fig:f-llsq}.
 \end{subfigure}
         
 \caption{Fitting of two simple functions using linear least-squares and ridge regression.}
-\label{fig:fig-sparse-motivation}
+\label{fig:sparse-motivation}
 \end{figure}
 
 Assuming now that we are given this data with no knowledge of the
@@ -383,7 +383,7 @@ another linear least-squares fit.
 \begin{subequations} \label{eq:f-2-llsq} \begin{align}    f_{\text{llsq, 2}}(x) &= 0.111 \cdot 1 + 1 \cdot x + 0.000703 \cdot x^{2} + 0.958 \cdot \sin\left( x \right) + 0.000711 \cdot \cos\left( x \right) \\
     \text{RMSE}[f_{\text{llsq}}] &= 0.0425 \end{align} \end{subequations}
 
-This has produced a more parsimonious representation comparing Eqs.
+This has produced a more parsimonious representation and comparing Eqs.
 \eqref{eq:f-1-llsq} and \eqref{eq:f-2-llsq} shows that the RSME has
 increased by a negligible amount.
 
@@ -425,9 +425,9 @@ calculation. The culprits are the functions \(\sin^2(x)\) and
 \(\cos^2(x)\); they are linearly dependent due to
 \(\sin^2(x) + \cos^2(x) = 1\). The net result is that the library data
 matrix is ill-conditioned for basic least-squares. One might wonder why
-we would include both \(\sin^2(x)\) and \(cos^2(x)\) in the first place.
-Here we should recall that the general problem is to find the sparsest
-representation, i.e.~if we can use \(\cos^2(x)\) rather than
+we would include both \(\sin^2(x)\) and \(\cos^2(x)\) in the first
+place. Here we should recall that the general problem is to find the
+sparsest representation, i.e.~if we can use \(\cos^2(x)\) rather than
 \(\sin^2(x) - 1\), this is preferable. One popular solution to the issue
 of linearly dependent library data is \emph{ridge regression}
 \cite{hoerl1970ridge} which introduces an additional parameter
@@ -452,104 +452,143 @@ ridge regression with \(\lambda = 0.1\)
 
 We obtain a good fit as shown in Figure \ref{fig:g-ridge}, but it is not
 sparse. With these motivating examples in hand, we can outline the
-\emph{sequentially-thresholded ridge regression} algorithm.
+\emph{sequentially-thresholded ridge regression} (STRidge) algorithm.
 
-\clearpage
+\begin{tcolorbox}[enhanced jigsaw, breakable, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white, rightrule=.15mm, colback=white, coltitle=black, bottomtitle=1mm, opacitybacktitle=0.6, toptitle=1mm, toprule=.15mm, bottomrule=.15mm, colframe=quarto-callout-tip-color-frame, titlerule=0mm, left=2mm, title={STRidge algorithm for sparse representation (Julia implementation)}, arc=.35mm, opacityback=0]
 
+\phantomsection\label{stridge}
+\phantomsection\label{annotated-cell-9}%
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# let}
-\NormalTok{times }\OperatorTok{=}\NormalTok{ x\_points\_f\_simple }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
-\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ f\_simple\_points}
+\KeywordTok{function} \FunctionTok{STRidge}\NormalTok{(}
+\NormalTok{  target\_data}\OperatorTok{::}\DataTypeTok{Vector\{\textless{}:Real\}}\NormalTok{, }\hspace*{\fill}\NormalTok{\circled{1}}
+\NormalTok{  library\_data}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{; }\hspace*{\fill}\NormalTok{\circled{2}}
+\NormalTok{  lambda\_sparse}\OperatorTok{::}\DataTypeTok{Real }\OperatorTok{=} \FloatTok{0.1}\NormalTok{, }\hspace*{\fill}\NormalTok{\circled{3}}
+\NormalTok{  lambda\_ridge}\OperatorTok{::}\DataTypeTok{Real }\OperatorTok{=} \FloatTok{0.1}\NormalTok{, }\hspace*{\fill}\NormalTok{\circled{4}}
+\NormalTok{  max\_iters}\OperatorTok{::}\DataTypeTok{Integer }\OperatorTok{=} \FloatTok{10}\NormalTok{)}
 
-\NormalTok{library }\OperatorTok{=}\NormalTok{ [x }\OperatorTok{{-}\textgreater{}} \FloatTok{1.0}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{3}\NormalTok{, x }\OperatorTok{{-}\textgreater{}} \FunctionTok{sin}\NormalTok{(x), x }\OperatorTok{{-}\textgreater{}} \FunctionTok{cos}\NormalTok{(x)]}
-\NormalTok{library\_names }\OperatorTok{=}\NormalTok{ [}\StringTok{"1"}\NormalTok{, }\StringTok{"x"}\NormalTok{, }\StringTok{"x\^{}2"}\NormalTok{, }\StringTok{"x\^{}3"}\NormalTok{, }\StringTok{"sin(x)"}\NormalTok{, }\StringTok{"cos(x)"}\NormalTok{]}
-\NormalTok{library\_data }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f}\NormalTok{(t) for t }\KeywordTok{in}\NormalTok{ times, f }\KeywordTok{in}\NormalTok{ library]}
+  \FunctionTok{rr}\NormalTok{(data) }\OperatorTok{=} \FunctionTok{ridge}\NormalTok{(data, target\_data, lambda\_ridge, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{) }\hspace*{\fill}\NormalTok{\circled{5}}
+\NormalTok{  Xi }\OperatorTok{=} \FunctionTok{rr}\NormalTok{(library\_data)}
 
-\NormalTok{λ\_sparse }\OperatorTok{=} \FloatTok{0.5}
-\NormalTok{λ\_ridge }\OperatorTok{=} \FloatTok{0.1}
+  \ControlFlowTok{for}\NormalTok{ \_ }\KeywordTok{in} \FloatTok{1}\OperatorTok{:}\NormalTok{max\_iters}
+\NormalTok{      smallinds }\OperatorTok{=} \FunctionTok{findall}\NormalTok{(p }\OperatorTok{{-}\textgreater{}} \FunctionTok{abs}\NormalTok{(p) }\OperatorTok{\textless{}}\NormalTok{ lambda\_sparse, Xi)}
+\NormalTok{      Xi[smallinds] }\OperatorTok{.=} \FloatTok{0}
+\NormalTok{      biginds }\OperatorTok{=} \FunctionTok{setdiff}\NormalTok{(}\FloatTok{1}\OperatorTok{:}\FunctionTok{length}\NormalTok{(Xi), smallinds)}
+\NormalTok{      Xi[biginds] }\OperatorTok{=} \FunctionTok{rr}\NormalTok{(library\_data[}\OperatorTok{:}\NormalTok{, biginds])}
+  \ControlFlowTok{end}
 
-\NormalTok{ls }\OperatorTok{=} \FunctionTok{llsq}\NormalTok{(library\_data, target\_data, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
-\NormalTok{pp\_ls }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(ls, library\_names)}
-
-\NormalTok{rr }\OperatorTok{=} \FunctionTok{ridge}\NormalTok{(library\_data, target\_data, λ\_ridge, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
-\NormalTok{pp\_rr }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(rr, library\_names)}
-
-\NormalTok{sr }\OperatorTok{=} \FunctionTok{sparse\_representation}\NormalTok{(times, target\_data, library\_data, λ\_sparse }\OperatorTok{=}\NormalTok{ λ\_sparse, λ\_ridge }\OperatorTok{=}\NormalTok{ λ\_ridge)}
-\NormalTok{pp\_sr }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(sr, library\_names)}
-
-\NormalTok{md}\StringTok{"""}
-\SpecialCharTok{\textbackslash{}b}\StringTok{egin\{subequations\} \textbackslash{}label\{eq:f{-}simple{-}1{-}sparse\}}
-\SpecialCharTok{\textbackslash{}b}\StringTok{egin\{align\} }
-\StringTok{  \textbackslash{}mathrm\{llsq\} \&= }\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp\_ls, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw, fmt  }\OperatorTok{=} \FunctionTok{FancyNumberFormatter}\NormalTok{(}\FloatTok{3}\NormalTok{)))}\StringTok{ }\SpecialCharTok{\textbackslash{}\textbackslash{}\textbackslash{}\textbackslash{}}
-\StringTok{  \textbackslash{}mathrm\{ridge\} \&= }\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp\_rr, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw, fmt  }\OperatorTok{=} \FunctionTok{FancyNumberFormatter}\NormalTok{(}\FloatTok{3}\NormalTok{)))}\StringTok{ }\SpecialCharTok{\textbackslash{}\textbackslash{}\textbackslash{}\textbackslash{}}
-\StringTok{  \textbackslash{}mathrm\{sparse\} \&= }\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp\_sr, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw, fmt  }\OperatorTok{=} \FunctionTok{FancyNumberFormatter}\NormalTok{(}\FloatTok{3}\NormalTok{)))}
-\SpecialCharTok{\textbackslash{}e}\StringTok{nd\{align\}}
-\SpecialCharTok{\textbackslash{}e}\StringTok{nd\{subequations\}}
-\StringTok{"""}
-\CommentTok{\# end}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{subequations} \label{eq:f-simple-1-sparse} \begin{align}    \mathrm{llsq} &= 0.111 \cdot 1 + 1.01 \cdot x + 0.000703 \cdot x^{2} -0.000482 \cdot x^{3} + 0.946 \cdot \sin\left( x \right) + 0.000711 \cdot \cos\left( x \right) \\
-  \mathrm{ridge} &= 0.11 \cdot 1 + 1.01 \cdot x + 0.00078 \cdot x^{2} -0.000763 \cdot x^{3} + 0.929 \cdot \sin\left( x \right) + 0.000792 \cdot \cos\left( x \right) \\
-  \mathrm{sparse} &= 1 \cdot x + 0.948 \cdot \sin\left( x \right) \end{align} \end{subequations}
-
-As a first example, take \(f(x) = x + \sin(x) + \cos(x)^2\). We will add
-a small noise term to simulate real data.
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{=}\NormalTok{ x }\OperatorTok{+} \FunctionTok{sin}\NormalTok{(x) }\OperatorTok{+} \FunctionTok{cos}\NormalTok{(x)}\OperatorTok{\^{}}\FloatTok{2}
-\NormalTok{x\_points }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\OperatorTok{{-}}\FloatTok{5}\NormalTok{, }\FloatTok{5}\NormalTok{, length }\OperatorTok{=} \FloatTok{100}\NormalTok{)}
-\NormalTok{f\_points }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f\_simple}\NormalTok{(x) }\OperatorTok{+} \FloatTok{0.2}\FunctionTok{*rand}\NormalTok{() for x }\KeywordTok{in}\NormalTok{ x\_points]}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{itemize}
-\tightlist
-\item
-  Library functions
-\item
-  need ridge regression since not positive definite
-\end{itemize}
-
-\begin{figure}
-    \centering
-    \includegraphics[width = 0.5\textwidth]{figures/test.png}
-    \caption{test}
-    \label{fig:test}
-\end{figure}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\KeywordTok{let}
-\NormalTok{times }\OperatorTok{=}\NormalTok{ x\_points }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
-\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ f\_points}
-
-\NormalTok{library }\OperatorTok{=}\NormalTok{ [x }\OperatorTok{{-}\textgreater{}} \FloatTok{1.0}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{2}\NormalTok{, x }\OperatorTok{{-}\textgreater{}}\NormalTok{ x}\OperatorTok{\^{}}\FloatTok{3}\NormalTok{, x }\OperatorTok{{-}\textgreater{}} \FunctionTok{sin}\NormalTok{(x), x }\OperatorTok{{-}\textgreater{}} \FunctionTok{cos}\NormalTok{(x)]}
-\NormalTok{library\_names }\OperatorTok{=}\NormalTok{ [}\StringTok{"1"}\NormalTok{, }\StringTok{"x"}\NormalTok{, }\StringTok{"x\^{}2"}\NormalTok{, }\StringTok{"x\^{}3"}\NormalTok{, }\StringTok{"sin(x)"}\NormalTok{, }\StringTok{"cos(x)"}\NormalTok{]}
-\NormalTok{library\_data }\OperatorTok{=}\NormalTok{ [}\FunctionTok{f}\NormalTok{(t) for t }\KeywordTok{in}\NormalTok{ times, f }\KeywordTok{in}\NormalTok{ library]}
-
-\NormalTok{λ\_sparse }\OperatorTok{=} \FloatTok{0.5}
-\NormalTok{λ\_ridge }\OperatorTok{=} \FloatTok{0.1}
-
-\NormalTok{rr }\OperatorTok{=} \FunctionTok{ridge}\NormalTok{(library\_data, target\_data, λ\_ridge, bias }\OperatorTok{=} \ConstantTok{false}\NormalTok{)}
-\CommentTok{\# @info pretty\_print(rr, library\_names)}
-
-\NormalTok{sr }\OperatorTok{=} \FunctionTok{sparse\_representation}\NormalTok{(times, target\_data, library\_data, λ\_sparse }\OperatorTok{=}\NormalTok{ λ\_sparse, λ\_ridge }\OperatorTok{=}\NormalTok{ λ\_ridge)}
-\NormalTok{pp }\OperatorTok{=} \FunctionTok{pretty\_print}\NormalTok{(sr, library\_names)}
-
-\NormalTok{md}\StringTok{"""}
-\SpecialCharTok{\textbackslash{}b}\StringTok{egin\{equation\}}
-\SpecialCharTok{$}\NormalTok{(}\FunctionTok{latexify}\NormalTok{(pp, env }\OperatorTok{=} \OperatorTok{:}\NormalTok{raw))}
-\SpecialCharTok{\textbackslash{}e}\StringTok{nd\{equation\}}
-\StringTok{"""}
+  \ControlFlowTok{return}\NormalTok{ Xi}
 \KeywordTok{end}
 \end{Highlighting}
 \end{Shaded}
 
-\begin{equation} 0.566 \cdot 1 + 1.0 \cdot x + 1.01 \cdot \sin\left( x \right) \end{equation}
+\begin{description}
+\tightlist
+\item[\circled{1}]
+\texttt{target\_data} is a vector of function (observation) values of
+length \(N\).
+\item[\circled{2}]
+\texttt{library\_data} is a matrix with a number of columns equal to the
+number of library functions. Then, each column has \(N\) rows, one for
+the library function evaluated at each observation.
+\item[\circled{3}]
+\texttt{lambda\_sparse} is the threshold below which library
+coefficients are set equal to zero.
+\item[\circled{4}]
+\texttt{lambda\_ridge} is the ridge regression regularization parameter.
+\item[\circled{5}]
+\texttt{ridge} is an implementation the ridge regression algorithm from
+\href{https://juliastats.org/MultivariateStats.jl/stable/lreg/\#Ridge-Regression}{\texttt{MultivariateStats.jl}}.
+\end{description}
+
+\end{tcolorbox}
+
+We see that the core idea behind the \texttt{STRidge} function is simply
+to iteratively threshold small library coefficients and ridge regress
+the remaining library functions onto the target data. Let us apply this
+to the \(g(x) = x + \sin(x) + \cos^2(x)\) case as above.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{g\_strr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(g\_points, library\_data, lambda\_sparse }\OperatorTok{=} \FloatTok{0.3}\NormalTok{, lambda\_ridge }\OperatorTok{=} \FloatTok{0.1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{subequations} \label{eq:g-strr} \begin{align}    g_{\text{strr}}(x) &= 1 \cdot x + 0.948 \cdot \sin\left( x \right) + 1.15 \cdot \cos^{2}\left( x \right) \\
+    \text{RMSE}[g_{\text{strr}}] &= 0.0417 \end{align} \end{subequations}
+
+Comparing Eq. \eqref{eq:g-strr} to \eqref{eq:g-ridge} shows that the
+\texttt{STRidge} algorithm has resulted in a significantly more sparse
+representation without increasing the rmse appreciably. Note that
+\(\lambda_\text{sparse}\) and \(\lambda_\text{ridge}\) are not
+prescribed currently. One has to choose their values judiciously to
+simultaneously remove small terms and avoid removing large terms.
+
+We will address one final issue before proceding to our discussion of
+SINDy. What if the target data or observations are multidimensional? As
+we are restricting our focus to dynamical systems, multidimensional
+observations require no further calculation as all coordinates will be
+functions of time. For example, a function such as
+\(f(x, y) = x^2 + y^2\) can be sparely represented by using library
+functions such as \(x(t), x^2(t) \dots, y(t), y^2(t), \dots\) which
+amounts to increasing the number of columns in \(\Theta\). To handle
+multidimensional observations, we simply apply the \texttt{STRidge}
+algorithm to each dimension of the target data.
+
+\begin{tcolorbox}[enhanced jigsaw, breakable, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white, rightrule=.15mm, colback=white, coltitle=black, bottomtitle=1mm, opacitybacktitle=0.6, toptitle=1mm, toprule=.15mm, bottomrule=.15mm, colframe=quarto-callout-tip-color-frame, titlerule=0mm, left=2mm, title={STRidge algorithm extension to multidimensional observations (Julia
+implementation)}, arc=.35mm, opacityback=0]
+
+\phantomsection\label{stridge-vec}
+\phantomsection\label{annotated-cell-10}%
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{function} \FunctionTok{STRidge}\NormalTok{(}
+\NormalTok{  target\_data}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{, }\hspace*{\fill}\NormalTok{\circled{1}}
+\NormalTok{  library\_data}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{; }
+\NormalTok{  lambda\_sparse}\OperatorTok{::}\DataTypeTok{Real }\OperatorTok{=} \FloatTok{0.1}\NormalTok{,}
+\NormalTok{  lambda\_ridge}\OperatorTok{::}\DataTypeTok{Real }\OperatorTok{=} \FloatTok{0.1}\NormalTok{,}
+\NormalTok{  max\_iters}\OperatorTok{::}\DataTypeTok{Integer }\OperatorTok{=} \FloatTok{10}\NormalTok{)}
+
+\NormalTok{    Xi }\OperatorTok{=} \FunctionTok{zeros}\NormalTok{(}\FunctionTok{size}\NormalTok{(library\_data, }\FloatTok{2}\NormalTok{), }\FunctionTok{size}\NormalTok{(target\_data, }\FloatTok{2}\NormalTok{))}
+    \ControlFlowTok{for}\NormalTok{ i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(target\_data, }\FloatTok{2}\NormalTok{)}
+\NormalTok{        sr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(target\_data[}\OperatorTok{:}\NormalTok{, i], library\_data, }
+\NormalTok{            lambda\_sparse }\OperatorTok{=}\NormalTok{ lambda\_sparse, }
+\NormalTok{            lambda\_ridge }\OperatorTok{=}\NormalTok{ lambda\_ridge,}
+\NormalTok{            max\_iters }\OperatorTok{=}\NormalTok{ max\_iters) }\hspace*{\fill}\NormalTok{\circled{2}}
+\NormalTok{        Xi[}\OperatorTok{:}\NormalTok{,i] }\OperatorTok{.=}\NormalTok{ sr}
+    \ControlFlowTok{end}
+
+    \ControlFlowTok{return}\NormalTok{ Xi}
+\KeywordTok{end}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{description}
+\tightlist
+\item[\circled{1}]
+\texttt{target\_data} is a now a matrix with \(N\) rows and a number of
+columns equal to the dimension of the target.
+\item[\circled{2}]
+We call the scalar version of \texttt{STRidge} on each column of
+\texttt{target\_data}.
+\end{description}
+
+\end{tcolorbox}
+
+We will apply this to multidimensional target data using our \(f(x)\)
+and \(g(x)\) functions of Figure \ref{fig:sparse-motivation}.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ [f\_simple\_points ;; g\_points]}
+\NormalTok{fg\_strr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(target\_data, library\_data, lambda\_sparse }\OperatorTok{=} \FloatTok{0.3}\NormalTok{, lambda\_ridge }\OperatorTok{=} \FloatTok{0.1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{subequations} \label{eq:g-strr} \begin{align}    f_{\text{strr}}(x) &= 1 \cdot x + 0.948 \cdot \sin\left( x \right) \\
+  g_{\text{strr}}(x) &= 1 \cdot x + 0.948 \cdot \sin\left( x \right) + 1.15 \cdot \cos^{2}\left( x \right) \end{align} \end{subequations}
+
+These are the correct sparse representations.
 
 \subsection{SINDy}\label{sindy}
 
@@ -569,74 +608,6 @@ representations}\label{direct-sparse-representations}
 \subsection{Full}\label{full}
 
 \section{Conclusions}\label{conclusions}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FloatTok{1} \OperatorTok{+} \FloatTok{2}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-3
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FloatTok{1} \OperatorTok{+} \FloatTok{2}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-3
-\end{verbatim}
-
-Blah blah \(sdfadf\) \begin{equation}
-F = ma
-\end{equation}
-
-\begin{tcolorbox}[enhanced jigsaw, leftrule=.75mm, bottomtitle=1mm, opacityback=0, rightrule=.15mm, bottomrule=.15mm, toptitle=1mm, breakable, colbacktitle=quarto-callout-tip-color!10!white, coltitle=black, title={Algorithm 1 (stock)}, toprule=.15mm, colframe=quarto-callout-tip-color-frame, arc=.35mm, colback=white, titlerule=0mm, left=2mm, opacitybacktitle=0.6]
-
-\phantomsection\label{annotated-cell-14}%
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{penguins }\OperatorTok{=} \FloatTok{1} \hspace*{\fill}\NormalTok{\circled{1}}
-\NormalTok{penguins}\OperatorTok{*}\FloatTok{2} \hspace*{\fill}\NormalTok{\circled{2}}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{description}
-\tightlist
-\item[\circled{1}]
-Take \texttt{penguins}, and then,
-\item[\circled{2}]
-add new columns for the bill ratio and bill area\ldots{}
-\end{description}
-
-\begin{verbatim}
-2
-\end{verbatim}
-
-\end{tcolorbox}
-
-\begin{algorithm}
-\caption{An algorithm with caption}\label{alg:cap}
-\begin{algorithmic}
-\Require $n \geq 0$
-\Ensure $y = x^n$
-\State $y \gets 1$
-\State $X \gets x$
-\State $N \gets n$
-\While{$N \neq 0$}
-\If{$N$ is even}
-    \State $X \gets X \times X$
-    \State $N \gets \frac{N}{2}$  \Comment{This is a comment}
-\ElsIf{$N$ is odd}
-    \State $y \gets y \times X$
-    \State $N \gets N - 1$
-\EndIf
-\EndWhile
-\end{algorithmic}
-\end{algorithm}
 
 
 \printbibliography
