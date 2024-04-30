@@ -1,6 +1,8 @@
 [deps]
+BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
 Bootstrap = "e28b5b4c-05e8-5b66-bc03-6f0c0a0a06e0"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"

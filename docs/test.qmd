@@ -30,10 +30,11 @@ highlight-style: arrow
 #| echo: false
 import Pkg; Pkg.activate(joinpath(@__DIR__, ".."))
 using DifferentialEquations
-using Interpolations
+using BSplineKit
 using MultivariateStats: llsq, ridge, mean
 using Random: seed!
 using StatsBase: sample
+using Combinatorics: multiexponents
 using Markdown
 using Latexify
 using CairoMakie; set_theme!(theme_latexfonts())
@@ -77,7 +78,7 @@ In this project, we investigated the application of *data discovery* algorithms 
     \dot{z} &= x y - (8 / 3) z .
 \end{align}
 \end{subequations}
-Trajectories $X(t) = (x(t), y(t), z(t))$ of this system are chaotic, making it difficult or impossible to propose a function that fits $X(t)$ directly. On the other hand, $\dot{X}$ is a low order polynomial function of $X(t)$ and hence should be much more tractable in principle. At the highest level, we therefore have the following problem: given numerical trajectories $\{x(t_1), x(t_2), \dots \}$, compute numerically $\{\dot{x}(t_1), \dot{x}(t_2), \dots \}$ and attempt to find a parsimonious (equivalently: \emph{sparse}) combination of simple functions of the $x(t)$ that faithfully represents it. 
+Trajectories $X(t) = (x(t), y(t), z(t))$ of this system are chaotic, making it difficult to fit $X(t)$ directly. Such a fit can be obtained by spline interpolation, but this generally reveals little about the underlying dynamics. On the other hand, $\dot{X}$ is a low order polynomial function of $X(t)$ and hence should be much more tractable in principle. At the highest level, we therefore have the following problem: given numerical trajectories $\{x(t_1), x(t_2), \dots \}$, compute numerically $\{\dot{x}(t_1), \dot{x}(t_2), \dots \}$ and attempt to find a parsimonious (equivalently: \emph{sparse}) combination of simple functions of the $x(t)$ that faithfully represents it. 
 
 This report contains embedded code from the [Julia](https://julialang.org/) programming language.
 
@@ -439,49 +440,99 @@ points = stack(points, dims = 1)
 ## SINDy
 
 We will now outline the procedure required to apply the sparse representation algorithms discussed previously to dynamical systems. First, we assume that we have systems of the form
-\begin{subequations}
-\begin{align}
-\dot{X} &= f_1(X, t) \\ 
-\ddot{X} &= f_2(X, \dot{X}, t), 
-\end{align}
-\end{subequations}
-where $X(t) = (x(y), y(t), z(t),  \dots))$ is a vector of coordinates and $f_1$, $f_2$ can be represented by sparse linear combinations of elementary functions. We also assume that the data we have access to are trajectory observations $\{X(t_1), X(t_2), \dots \}$. Note that if we had access to $\{\dot{X}(t_1), \dot{X}(t_2), \dots \}$ then this would immediately result in a sparse representation problem for the function $f_1$ and analogously for $\{\ddot{X}(t_1), \ddot{X}(t_2), \dots \}$ and $f_2$. Hence, we only need one preprocessing function `derivatives` outlined below which will provide the required derivatives via interpolation.
+\begin{equation} \label{eq:ode-general}
+\frac{\text{d}^n X}{\text{d}t^n} = f(t, X,  X', X'', \dots, X^{(n - 1)}),
+\end{equation}
+where $X(t) = (x(y), y(t), z(t),  \dots))$ is a vector of coordinates and $f$, can be represented by sparse linear combinations of elementary functions. We also assume that the data we have access to are trajectory observations $\{X(t_1), X(t_2), \dots \}$. Eq. \eqref{eq:ode-general} can be readily represented as a system of first order differential equations where all of the nontrivial dynamics are contained in $f$.  If we had access to $\{\dot{X}(t_1), \dot{X}(t_2), \dots \}$ and higher derivatives, then this would immediately result in a sparse representation problem for the function $f$. Hence, we only need one preprocessing function `derivatives` outlined below which will provide the required derivatives via spline interpolation.
 
 ::: {.callout-tip icon=false}
-## Compute first and second derivatives of a trajectory (Julia implementation)
+## Compute derivatives of a trajectory (Julia implementation)
 
 ```{julia}
 #| output: false
+
 function derivatives(
   times::Vector{<:Real}, # <1>
-  trajectories::Matrix{<:Real}) # <2>
+  trajectories::Matrix{<:Real}; # <2>
+  spline_order::Integer = 4, # <3>
+  max_derivative_order = 2) 
 
-  itps_gridded = [
-    interpolate((times,), trajectories[:,i], Gridded(Linear())) # <3>
+  bo = BSplineOrder(spline_order)
+  bn = BSplineKit.Natural()
+
+  itps = [spline(interpolate(times, trajectories[:,i], bo, bn))  # <4>
     for i = 1:size(trajectories, 2)]
 
-  ts = range(times[1], times[end], length = length(times))
-  itps = [
-    cubic_spline_interpolation(ts, itps_gridded[i].(ts)) # <4>
-    for i = 1:size(trajectories, 2)]
-
-  data = [ # <5>
-    trajectories,
-    [gradient(itp, t)[1] for t in times, itp in itps],
-    [hessian(itp, t)[1] for t in times, itp in itps]
-  ]
+  data = [[diff(S, Derivative(i))(t) for t in times, S in itps] # <5>
+    for i = 0:max_derivative_order]
 
   return data
 end
 ```
 1. `times` is a vector of times that the trajectory data are given on of length $N$.
 2. `trajectories` is a matrix with $N$ rows and a number of columns equal to the number of coordinates.
-3. We interpolate the (possibly non-uniform) observation times to a uniform grid. The functions `interpolate`, `cubic_spline_interpolation`, `gradient` and `hessian` are from [Interpolations.jl](http://juliamath.github.io/Interpolations.jl/latest/).
-4. Construct cubic interpolants for each coordinate on the new uniform grid `ts`.
-5. Construct a vector of three matrices, $X$, $\dot{X}$ and $\ddot{X}$, all evaluated at the original `times`.
+3. Spline order of 4 corresponds to cubic splines.
+4. Spline interpolation using [BSplineKit.jl](https://jipolanco.github.io/BSplineKit.jl/stable/).
+5. Construct and return a vector of matrices, where `data[i][:,j]` is the `(i-1)`th derivative of the `j`th coordinate evaluated at `times`. Note that the `0`th derivative is the coordinate itself.
 :::
 
-We can therefore treat the data generated by `derivatives` as the `target_data` for our sparse representation algorithm; this is precisely the standard SINDy algorithm.
+We can therefore treat the data generated by `derivatives` as the `target_data` for our sparse representation algorithm; this is precisely the standard SINDy algorithm. There is one more detail to consider, namely that it is cumbersome to create lists of every possible multivariable monomial by hand. We therefore automate this process using the `polynomials` function below.
+
+::: {.callout-tip icon=false}
+## Compute arbitrary polynomial functions of variables (Julia implementation)
+
+```{julia}
+#| output: false
+
+function polynomials(
+  data::Matrix{<:Real}, # <1>
+  order::Integer; # <2>
+  var_names::Union{Vector{<:String}, Nothing} = nothing) # <3>
+
+  var_names = var_names === nothing ? ["x$(i)" for i = 1:size(data, 2)] : var_names
+  exps = [multiexponents(size(data, 2), i) for i = 0:order] # <4>
+
+  polys = zeros(size(data, 1), sum(length.(exps)))
+  names = fill("", size(polys, 2))
+
+  polys_i = 1
+  for order in exps, ex in order
+    polys[:,polys_i] .= [data[:,i] .^ ex[i] for i = 1:size(data, 2)] |> 
+      x -> prod(stack(x), dims = 2) # <5>
+
+    name = "" 
+    for i = 1:length(var_names) 
+      if ex[i] != 0 
+        name *= var_names[i] * (ex[i] != 1 ? "^$(ex[i])" : "") # <6>
+      end
+    end
+    names[polys_i] = name
+    polys_i += 1
+  end
+
+  names[1] = "1"
+
+  return (polys, names)
+end
+```
+1. `data` is a matrix with $N$ rows and a number of columns equal to the number of variables.
+2. `order` is an integer equal to the maximum monomial order requested, e.g. if `order == 2` with two variables `x, y`, then `polynomials` will compute `1, x, y, x^2, y^2, xy`.
+3. If provided, `var_names` will assign the given names to each variable in its output. Otherwise, defaults `x1, x2, ...` will be used.
+4. Multiexponents using [Combinatorics.jl](https://juliamath.github.io/Combinatorics.jl/dev/).
+5. Compute each monomial term by raising each column to the appropriate exponent, and then multiply all columns.
+6. If an exponent is zero, we don't want its name to show uup in that term, and if an exponent is 1, we omit the exponent. Otherwise, the exponent is shown.
+:::
+
+```{julia}
+data = rand(3,  2) # 3 times, 2 variables
+order = 2 # all monomials up to and including 2
+
+ps = polynomials(data, order, var_names = ["x", "y"])
+@info ps[2]
+round.(ps[1], sigdigits = 3)
+```
+
+\clearpage
 
 ::: {.callout-tip icon=false}
 ## SINDy [standard] (Julia implementation)
@@ -513,7 +564,7 @@ end
 
 sol_lorenz = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0)) |> solve
 
-times_lorenz = range(0.0, 10.0, length = 100) |> collect
+times_lorenz = range(0.0, 10.0, length = 1000) |> collect
 traj_lorenz = [sol_lorenz(t)[i] for t in times_lorenz, i = 1:3]
 
 ds = derivatives(times_lorenz, traj_lorenz)
@@ -522,19 +573,9 @@ y_L, dy_L, d2y_L = ds[1][:,2], ds[2][:,2], ds[3][:,2]
 z_L, dz_L, d2z_L = ds[1][:,3], ds[2][:,3], ds[3][:,3]
 
 target_data = [dx_L ;; dy_L ;; dz_L]
+library_data, library_names = polynomials(traj_lorenz, 3, var_names = ["x", "y", "z"])
 
-library_data = [
-  ones(length(times_lorenz)) ;; 
-  x_L ;; y_L ;; z_L ;; 
-  x_L .^2 ;; y_L .^2 ;; z_L .^ 2 ;;
-  x_L .* y_L ;; x_L .* z_L ;; y_L .* z_L]
-
-library_names = ["1", 
-  "x", "y", "z",
-  "x^2", "y^2", "z^2",
-  "xy", "xz", "yz"]
-
-rr = STRidge(target_data, library_data, lambda_sparse = 0.87)
+rr = STRidge(target_data, library_data, lambda_sparse = 0.3)
 pretty_print(rr, library_names)
 ```
 
@@ -557,10 +598,11 @@ for lambda_sparse in 10 .^ range(-3, 1, length = 1000)
   end
 end
 points = stack(points, dims = 1)
+scatter(log10.(points[:,1]), points[:,3], color = points[:,2])
 ```
 
 ```{julia}
-n_bootstraps = 100
+n_bootstraps = 1000
 lambda_sparse = 0.8
 lambda_ridge = 0.0
 max_iters = 10
