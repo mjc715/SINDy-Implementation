@@ -454,10 +454,10 @@ We obtain a good fit as shown in Figure \ref{fig:g-ridge}, but it is not
 sparse. With these motivating examples in hand, we can outline the
 \emph{sequentially-thresholded ridge regression} (STRidge) algorithm.
 
-\begin{tcolorbox}[enhanced jigsaw, breakable, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white, rightrule=.15mm, colback=white, coltitle=black, bottomtitle=1mm, opacitybacktitle=0.6, toptitle=1mm, toprule=.15mm, bottomrule=.15mm, colframe=quarto-callout-tip-color-frame, titlerule=0mm, left=2mm, title={STRidge algorithm for sparse representation (Julia implementation)}, arc=.35mm, opacityback=0]
+\begin{tcolorbox}[enhanced jigsaw, toptitle=1mm, colframe=quarto-callout-tip-color-frame, title={STRidge algorithm for sparse representation (Julia implementation)}, breakable, coltitle=black, bottomtitle=1mm, arc=.35mm, titlerule=0mm, opacitybacktitle=0.6, rightrule=.15mm, colback=white, bottomrule=.15mm, toprule=.15mm, left=2mm, opacityback=0, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white]
 
 \phantomsection\label{stridge}
-\phantomsection\label{annotated-cell-9}%
+\phantomsection\label{annotated-cell-11}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{STRidge}\NormalTok{(}
@@ -535,11 +535,11 @@ amounts to increasing the number of columns in \(\Theta\). To handle
 multidimensional observations, we simply apply the \texttt{STRidge}
 algorithm to each dimension of the target data.
 
-\begin{tcolorbox}[enhanced jigsaw, breakable, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white, rightrule=.15mm, colback=white, coltitle=black, bottomtitle=1mm, opacitybacktitle=0.6, toptitle=1mm, toprule=.15mm, bottomrule=.15mm, colframe=quarto-callout-tip-color-frame, titlerule=0mm, left=2mm, title={STRidge algorithm extension to multidimensional observations (Julia
-implementation)}, arc=.35mm, opacityback=0]
+\begin{tcolorbox}[enhanced jigsaw, toptitle=1mm, colframe=quarto-callout-tip-color-frame, title={STRidge algorithm extension to multidimensional observations (Julia
+implementation)}, breakable, coltitle=black, bottomtitle=1mm, arc=.35mm, titlerule=0mm, opacitybacktitle=0.6, rightrule=.15mm, colback=white, bottomrule=.15mm, toprule=.15mm, left=2mm, opacityback=0, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white]
 
 \phantomsection\label{stridge-vec}
-\phantomsection\label{annotated-cell-10}%
+\phantomsection\label{annotated-cell-12}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{STRidge}\NormalTok{(}
@@ -590,7 +590,189 @@ and \(g(x)\) functions of Figure \ref{fig:sparse-motivation}.
 
 These are the correct sparse representations.
 
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{points }\OperatorTok{=}\NormalTok{ []}
+\NormalTok{rrs }\OperatorTok{=}\NormalTok{ []}
+\NormalTok{n\_terms\_poss }\OperatorTok{=}\NormalTok{ []}
+\ControlFlowTok{for}\NormalTok{ lambda\_sparse }\KeywordTok{in} \FloatTok{10} \OperatorTok{.\^{}} \FunctionTok{range}\NormalTok{(}\OperatorTok{{-}}\FloatTok{3}\NormalTok{, }\FloatTok{1}\NormalTok{, length }\OperatorTok{=} \FloatTok{100}\NormalTok{)}
+\NormalTok{  rr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(g\_points, library\_data, lambda\_sparse }\OperatorTok{=}\NormalTok{ lambda\_sparse, lambda\_ridge }\OperatorTok{=} \FloatTok{0.1}\NormalTok{)}
+\NormalTok{  rmse }\OperatorTok{=} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{mean}\NormalTok{(}\FunctionTok{abs2}\NormalTok{.(g\_points }\OperatorTok{{-}}\NormalTok{ library\_data }\OperatorTok{*}\NormalTok{ rr)))}
+\NormalTok{  n\_terms }\OperatorTok{=} \FunctionTok{count}\NormalTok{(iszero, rr)}
+
+  \ControlFlowTok{if}\NormalTok{ !(n\_terms }\KeywordTok{in}\NormalTok{ n\_terms\_poss)}
+    \FunctionTok{push!}\NormalTok{(points, [lambda\_sparse, n\_terms, rmse])}
+    \FunctionTok{push!}\NormalTok{(rrs, rr)}
+    \FunctionTok{push!}\NormalTok{(n\_terms\_poss, n\_terms)}
+  \ControlFlowTok{else}
+\NormalTok{    points[}\KeywordTok{end}\NormalTok{] }\OperatorTok{=}\NormalTok{ [lambda\_sparse, n\_terms, rmse]}
+\NormalTok{    rrs[}\KeywordTok{end}\NormalTok{] }\OperatorTok{=}\NormalTok{ rr}
+  \ControlFlowTok{end}
+\ControlFlowTok{end}
+\NormalTok{points }\OperatorTok{=} \FunctionTok{stack}\NormalTok{(points, dims }\OperatorTok{=} \FloatTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+6×3 Matrix{Float64}:
+  0.0012045  1.0  0.041982
+  0.0021049  2.0  0.0431606
+  0.291505   3.0  0.0431172
+  0.673415   5.0  0.078293
+  0.890215   6.0  0.682313
+ 10.0        8.0  2.98165
+\end{verbatim}
+
 \subsection{SINDy}\label{sindy}
+
+We will now outline the procedure required to apply the sparse
+representation algorithms discussed previously to dynamical systems.
+First, we assume that we have systems of the form \begin{subequations}
+\begin{align}
+\dot{X} &= f_1(X, t) \\ 
+\ddot{X} &= f_2(X, \dot{X}, t), 
+\end{align}
+\end{subequations} where \(X(t) = (x(y), y(t), z(t),  \dots))\) is a
+vector of coordinates and \(f_1\), \(f_2\) can be represented by sparse
+linear combinations of elementary functions. We also assume that the
+data we have access to are trajectory observations
+\(\{X(t_1), X(t_2), \dots \}\). Note that if we had access to
+\(\{\dot{X}(t_1), \dot{X}(t_2), \dots \}\) then this would immediately
+result in a sparse representation problem for the function \(f_1\) and
+analogously for \(\{\ddot{X}(t_1), \ddot{X}(t_2), \dots \}\) and
+\(f_2\). Hence, we only need one preprocessing function
+\texttt{derivatives} outlined below which will provide the required
+derivatives via interpolation.
+
+\begin{tcolorbox}[enhanced jigsaw, toptitle=1mm, colframe=quarto-callout-tip-color-frame, title={Compute first and second derivatives of a trajectory (Julia
+implementation)}, breakable, coltitle=black, bottomtitle=1mm, arc=.35mm, titlerule=0mm, opacitybacktitle=0.6, rightrule=.15mm, colback=white, bottomrule=.15mm, toprule=.15mm, left=2mm, opacityback=0, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white]
+
+\phantomsection\label{annotated-cell-14}%
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{function} \FunctionTok{derivatives}\NormalTok{(}
+\NormalTok{  times}\OperatorTok{::}\DataTypeTok{Vector\{\textless{}:Real\}}\NormalTok{, }\hspace*{\fill}\NormalTok{\circled{1}}
+\NormalTok{  trajectories}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{) }\hspace*{\fill}\NormalTok{\circled{2}}
+
+\NormalTok{  itps\_gridded }\OperatorTok{=}\NormalTok{ [}
+    \FunctionTok{interpolate}\NormalTok{((times,), trajectories[}\OperatorTok{:}\NormalTok{,i], }\FunctionTok{Gridded}\NormalTok{(}\FunctionTok{Linear}\NormalTok{())) }\hspace*{\fill}\NormalTok{\circled{3}}
+\NormalTok{    for i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(trajectories, }\FloatTok{2}\NormalTok{)]}
+
+\NormalTok{  ts }\OperatorTok{=} \FunctionTok{range}\NormalTok{(times[}\FloatTok{1}\NormalTok{], times[}\KeywordTok{end}\NormalTok{], length }\OperatorTok{=} \FunctionTok{length}\NormalTok{(times))}
+\NormalTok{  itps }\OperatorTok{=}\NormalTok{ [}
+    \FunctionTok{cubic\_spline\_interpolation}\NormalTok{(ts, itps\_gridded[i].(ts)) }\hspace*{\fill}\NormalTok{\circled{4}}
+\NormalTok{    for i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(trajectories, }\FloatTok{2}\NormalTok{)]}
+
+\NormalTok{  data }\OperatorTok{=}\NormalTok{ [ }\hspace*{\fill}\NormalTok{\circled{5}}
+\NormalTok{    trajectories,}
+\NormalTok{    [}\FunctionTok{gradient}\NormalTok{(itp, t)[}\FloatTok{1}\NormalTok{] for t }\KeywordTok{in}\NormalTok{ times, itp }\KeywordTok{in}\NormalTok{ itps],}
+\NormalTok{    [}\FunctionTok{hessian}\NormalTok{(itp, t)[}\FloatTok{1}\NormalTok{] for t }\KeywordTok{in}\NormalTok{ times, itp }\KeywordTok{in}\NormalTok{ itps]}
+\NormalTok{  ]}
+
+  \ControlFlowTok{return}\NormalTok{ data}
+\KeywordTok{end}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{description}
+\tightlist
+\item[\circled{1}]
+\texttt{times} is a vector of times that the trajectory data are given
+on of length \(N\).
+\item[\circled{2}]
+\texttt{trajectories} is a matrix with \(N\) rows and a number of
+columns equal to the number of coordinates.
+\item[\circled{3}]
+We interpolate the (possibly non-uniform) observation times to a uniform
+grid. The functions \texttt{interpolate},
+\texttt{cubic\_spline\_interpolation}, \texttt{gradient} and
+\texttt{hessian} are from
+\href{http://juliamath.github.io/Interpolations.jl/latest/}{Interpolations.jl}.
+\item[\circled{4}]
+Construct cubic interpolants for each coordinate on the new uniform grid
+\texttt{ts}.
+\item[\circled{5}]
+Construct a vector of three matrices, \(X\), \(\dot{X}\) and
+\(\ddot{X}\), all evaluated at the original \texttt{times}.
+\end{description}
+
+\end{tcolorbox}
+
+We can therefore treat the data generated by \texttt{derivatives} as the
+\texttt{target\_data} for our sparse representation algorithm; this is
+precisely the standard SINDy algorithm.
+
+\begin{tcolorbox}[enhanced jigsaw, toptitle=1mm, colframe=quarto-callout-tip-color-frame, title={SINDy {[}standard{]} (Julia implementation)}, breakable, coltitle=black, bottomtitle=1mm, arc=.35mm, titlerule=0mm, opacitybacktitle=0.6, rightrule=.15mm, colback=white, bottomrule=.15mm, toprule=.15mm, left=2mm, opacityback=0, leftrule=.75mm, colbacktitle=quarto-callout-tip-color!10!white]
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{function} \FunctionTok{sindy}\NormalTok{(}
+\NormalTok{  times}\OperatorTok{::}\DataTypeTok{Vector\{\textless{}:Real\}}\NormalTok{,}
+\NormalTok{  trajectories}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{,}
+\NormalTok{  target\_data}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{, }
+\NormalTok{  library\_data}\OperatorTok{::}\DataTypeTok{Matrix\{\textless{}:Real\}}\NormalTok{; }
+\NormalTok{  lambda\_sparse}\OperatorTok{::}\DataTypeTok{Real }\OperatorTok{=} \FloatTok{0.1}\NormalTok{,}
+\NormalTok{  lambda\_ridge}\OperatorTok{::}\DataTypeTok{Real }\OperatorTok{=} \FloatTok{0.1}\NormalTok{,}
+\NormalTok{  max\_iters}\OperatorTok{::}\DataTypeTok{Integer }\OperatorTok{=} \FloatTok{10}\NormalTok{)}
+
+  \ControlFlowTok{return}\NormalTok{ nothing∂}
+\KeywordTok{end}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \texttt{times} is a vector of times that the trajectory data are given
+  on of length \(N\).
+\end{enumerate}
+
+\end{tcolorbox}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{function} \FunctionTok{lorenz!}\NormalTok{(du, u, p, t)}
+\NormalTok{    x, y, z }\OperatorTok{=}\NormalTok{ u}
+\NormalTok{    du[}\FloatTok{1}\NormalTok{] }\OperatorTok{=} \FloatTok{10.0} \OperatorTok{*}\NormalTok{ (y }\OperatorTok{{-}}\NormalTok{ x)}
+\NormalTok{    du[}\FloatTok{2}\NormalTok{] }\OperatorTok{=}\NormalTok{ x }\OperatorTok{*}\NormalTok{ (}\FloatTok{28.0} \OperatorTok{{-}}\NormalTok{ z) }\OperatorTok{{-}}\NormalTok{ y}
+\NormalTok{    du[}\FloatTok{3}\NormalTok{] }\OperatorTok{=}\NormalTok{ x }\OperatorTok{*}\NormalTok{ y }\OperatorTok{{-}}\NormalTok{ (}\FloatTok{8} \OperatorTok{/} \FloatTok{3}\NormalTok{) }\OperatorTok{*}\NormalTok{ z}
+\KeywordTok{end}
+
+\NormalTok{sol\_lorenz }\OperatorTok{=} \FunctionTok{ODEProblem}\NormalTok{(lorenz!, [}\FloatTok{1.0}\NormalTok{, }\FloatTok{1.0}\NormalTok{, }\FloatTok{1.0}\NormalTok{], (}\FloatTok{0.0}\NormalTok{, }\FloatTok{10.0}\NormalTok{)) }\OperatorTok{|\textgreater{}}\NormalTok{ solve}
+
+\NormalTok{times\_lorenz }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\FloatTok{0.0}\NormalTok{, }\FloatTok{10.0}\NormalTok{, length }\OperatorTok{=} \FloatTok{100}\NormalTok{) }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
+\NormalTok{traj\_lorenz }\OperatorTok{=}\NormalTok{ [}\FunctionTok{sol\_lorenz}\NormalTok{(t)[i] for t }\KeywordTok{in}\NormalTok{ times\_lorenz, i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FloatTok{3}\NormalTok{]}
+
+\NormalTok{ds }\OperatorTok{=} \FunctionTok{derivatives}\NormalTok{(times\_lorenz, traj\_lorenz)}
+\NormalTok{x\_L, dx\_L, d2x\_L }\OperatorTok{=}\NormalTok{ ds[}\FloatTok{1}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{1}\NormalTok{], ds[}\FloatTok{2}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{1}\NormalTok{], ds[}\FloatTok{3}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{1}\NormalTok{]}
+\NormalTok{y\_L, dy\_L, d2y\_L }\OperatorTok{=}\NormalTok{ ds[}\FloatTok{1}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{2}\NormalTok{], ds[}\FloatTok{2}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{2}\NormalTok{], ds[}\FloatTok{3}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{2}\NormalTok{]}
+\NormalTok{z\_L, dz\_L, d2z\_L }\OperatorTok{=}\NormalTok{ ds[}\FloatTok{1}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{3}\NormalTok{], ds[}\FloatTok{2}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{3}\NormalTok{], ds[}\FloatTok{3}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{3}\NormalTok{]}
+
+\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ [dx\_L ;; dy\_L ;; dz\_L]}
+
+\NormalTok{library\_data }\OperatorTok{=}\NormalTok{ [}
+  \FunctionTok{ones}\NormalTok{(}\FunctionTok{length}\NormalTok{(times\_lorenz)) ;; }
+\NormalTok{  x\_L ;; y\_L ;; z\_L ;; }
+\NormalTok{  x\_L }\OperatorTok{.\^{}}\FloatTok{2}\NormalTok{ ;; y\_L }\OperatorTok{.\^{}}\FloatTok{2}\NormalTok{ ;; z\_L }\OperatorTok{.\^{}} \FloatTok{2}\NormalTok{ ;;}
+\NormalTok{  x\_L }\OperatorTok{.*}\NormalTok{ y\_L ;; x\_L }\OperatorTok{.*}\NormalTok{ z\_L ;; y\_L }\OperatorTok{.*}\NormalTok{ z\_L]}
+
+\NormalTok{library\_names }\OperatorTok{=}\NormalTok{ [}\StringTok{"1"}\NormalTok{, }
+  \StringTok{"x"}\NormalTok{, }\StringTok{"y"}\NormalTok{, }\StringTok{"z"}\NormalTok{,}
+  \StringTok{"x\^{}2"}\NormalTok{, }\StringTok{"y\^{}2"}\NormalTok{, }\StringTok{"z\^{}2"}\NormalTok{,}
+  \StringTok{"xy"}\NormalTok{, }\StringTok{"xz"}\NormalTok{, }\StringTok{"yz"}\NormalTok{]}
+
+\NormalTok{rr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(target\_data, library\_data, lambda\_sparse }\OperatorTok{=} \FloatTok{0.9}\NormalTok{)}
+\FunctionTok{pretty\_print}\NormalTok{(rr, library\_names)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+3-element Vector{String}:
+ "-9.05*x + 9.05*y"
+ "-26.0*1 + -12.5*x + 8.88*y"
+ "18.6*1 + 2.23*y"
+\end{verbatim}
 
 \subsection{E-SINDy}\label{e-sindy}
 
