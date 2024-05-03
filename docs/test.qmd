@@ -601,7 +601,7 @@ function lorenz!(du, u, p, t)
     du[3] = x * y - (8 / 3) * z
 end
 
-sol_lorenz = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0)) |> solve
+sol_lorenz = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 100.0)) |> solve
 
 times_lorenz = range(0.0, 10.0, length = 300) |> collect
 traj_lorenz = [sol_lorenz(t)[i] for t in times_lorenz, i = 1:3]
@@ -620,7 +620,7 @@ pretty_print(rr, lib_names)
 
 ```{julia}
 f_lib = [(t, u) -> sum([rr[i,j] .* lib_funcs[i](t, u) for i = 1:size(rr, 1)]) for j = 1:size(rr, 2)]
-lorenz_sindy = ODEProblem(library_to_odefun(f_lib, 1), [1.0, 1.0, 1.0], (0.0, 10.0)) 
+lorenz_sindy = ODEProblem(library_to_odefun(f_lib, 1), [1.0, 1.0, 1.0], (0.0, 100.0)) 
 sol_lorenz_sindy = lorenz_sindy |> solve
 traj_lorenz_sindy = [sol_lorenz_sindy(t)[i] for t in times_lorenz, i = 1:3]
 ```
@@ -640,6 +640,7 @@ end
 
 axislegend(ax)
 
+# xlims!(1,20)
 fig
 ```
 
@@ -664,7 +665,11 @@ for lambda_sparse in 10 .^ range(-3, 1, length = 1000)
   end
 end
 points = stack(points, dims = 1)
-scatter(log10.(points[:,1]), points[:,3], color = points[:,2])
+
+fig = Figure()
+ax = Axis(fig[1, 1], xlabel = L"\log10(\lambda)", ylabel = "RMSE")
+scatter!(ax, log10.(points[:,1]), points[:,3], color = points[:,2])
+fig
 ```
 
 <!-- SAMPLE BAGGING -->

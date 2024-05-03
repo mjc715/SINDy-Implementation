@@ -455,10 +455,10 @@ We obtain a good fit as shown in Figure \ref{fig:g-ridge}, but it is not
 sparse. With these motivating examples in hand, we can outline the
 \emph{sequentially-thresholded ridge regression} (STRidge) algorithm.
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, toptitle=1mm, toprule=.15mm, rightrule=.15mm, arc=.35mm, bottomrule=.15mm, opacityback=0, colback=white, breakable, left=2mm, opacitybacktitle=0.6, bottomtitle=1mm, leftrule=.75mm, titlerule=0mm, colframe=quarto-callout-tip-color-frame, coltitle=black, title={STRidge algorithm for sparse representation (Julia implementation)}]
+\begin{tcolorbox}[enhanced jigsaw, bottomrule=.15mm, toprule=.15mm, coltitle=black, colframe=quarto-callout-tip-color-frame, colbacktitle=quarto-callout-tip-color!10!white, bottomtitle=1mm, toptitle=1mm, opacitybacktitle=0.6, titlerule=0mm, title={STRidge algorithm for sparse representation (Julia implementation)}, left=2mm, leftrule=.75mm, rightrule=.15mm, breakable, colback=white, arc=.35mm, opacityback=0]
 
 \phantomsection\label{stridge}
-\phantomsection\label{annotated-cell-14}%
+\phantomsection\label{annotated-cell-16}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{STRidge}\NormalTok{(}
@@ -536,11 +536,11 @@ amounts to increasing the number of columns in \(\Theta\). To handle
 multidimensional observations, we simply apply the \texttt{STRidge}
 algorithm to each dimension of the target data.
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, toptitle=1mm, toprule=.15mm, rightrule=.15mm, arc=.35mm, bottomrule=.15mm, opacityback=0, colback=white, breakable, left=2mm, opacitybacktitle=0.6, bottomtitle=1mm, leftrule=.75mm, titlerule=0mm, colframe=quarto-callout-tip-color-frame, coltitle=black, title={STRidge algorithm extension to multidimensional observations (Julia
-implementation)}]
+\begin{tcolorbox}[enhanced jigsaw, bottomrule=.15mm, toprule=.15mm, coltitle=black, colframe=quarto-callout-tip-color-frame, colbacktitle=quarto-callout-tip-color!10!white, bottomtitle=1mm, toptitle=1mm, opacitybacktitle=0.6, titlerule=0mm, title={STRidge algorithm extension to multidimensional observations (Julia
+implementation)}, left=2mm, leftrule=.75mm, rightrule=.15mm, breakable, colback=white, arc=.35mm, opacityback=0]
 
 \phantomsection\label{stridge-vec}
-\phantomsection\label{annotated-cell-15}%
+\phantomsection\label{annotated-cell-17}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{STRidge}\NormalTok{(}
@@ -611,9 +611,9 @@ representation problem for the function \(f\). Hence, we only need one
 preprocessing function \texttt{derivatives} outlined below which will
 provide the required derivatives via spline interpolation.
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, toptitle=1mm, toprule=.15mm, rightrule=.15mm, arc=.35mm, bottomrule=.15mm, opacityback=0, colback=white, breakable, left=2mm, opacitybacktitle=0.6, bottomtitle=1mm, leftrule=.75mm, titlerule=0mm, colframe=quarto-callout-tip-color-frame, coltitle=black, title={Compute derivatives of a trajectory (Julia implementation)}]
+\begin{tcolorbox}[enhanced jigsaw, bottomrule=.15mm, toprule=.15mm, coltitle=black, colframe=quarto-callout-tip-color-frame, colbacktitle=quarto-callout-tip-color!10!white, bottomtitle=1mm, toptitle=1mm, opacitybacktitle=0.6, titlerule=0mm, title={Compute derivatives of a trajectory (Julia implementation)}, left=2mm, leftrule=.75mm, rightrule=.15mm, breakable, colback=white, arc=.35mm, opacityback=0]
 
-\phantomsection\label{annotated-cell-16}%
+\phantomsection\label{annotated-cell-18}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{derivatives}\NormalTok{(}
@@ -667,7 +667,7 @@ that we may integrate it.
 
 Finally we can describe the the standard SINDy algorithm in pseudocode.
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-note-color!10!white, toptitle=1mm, toprule=.15mm, rightrule=.15mm, arc=.35mm, bottomrule=.15mm, opacityback=0, colback=white, breakable, left=2mm, opacitybacktitle=0.6, bottomtitle=1mm, leftrule=.75mm, titlerule=0mm, colframe=quarto-callout-note-color-frame, coltitle=black, title={SINDy {[}standard{]}}]
+\begin{tcolorbox}[enhanced jigsaw, bottomrule=.15mm, toprule=.15mm, coltitle=black, colframe=quarto-callout-note-color-frame, colbacktitle=quarto-callout-note-color!10!white, bottomtitle=1mm, toptitle=1mm, opacitybacktitle=0.6, titlerule=0mm, title={SINDy {[}standard{]}}, left=2mm, leftrule=.75mm, rightrule=.15mm, breakable, colback=white, arc=.35mm, opacityback=0]
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -714,43 +714,56 @@ as our main intergrator, which requires that we express our system in
 first-order
 form.\footnote{Actually, this is not strictly required, but it is the most general and straightforward way to proceed.}
 For example, the function we must construct will have the following form
-for a second-order ODE when there are three variables and we have
-identified \texttt{f1}, \texttt{f2} and \texttt{f3}.
+for a third-order ODE when there are two variables and we have
+identified \texttt{f1}, \texttt{f2}.
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{integrate\_me!}\NormalTok{(du, u, p, t)}
-  \CommentTok{\# ode\_order = 2, with 3 library functions}
-  \CommentTok{\# x, y, z, dx, dy, dz, d2x, d2y, d2z = u}
-\NormalTok{  du[}\FloatTok{1}\OperatorTok{:}\FloatTok{6}\NormalTok{] }\OperatorTok{=}\NormalTok{ u[}\FloatTok{3}\OperatorTok{:}\FloatTok{9}\NormalTok{]}
+  \CommentTok{\# ode\_order = 3, with 2 variables}
+  \CommentTok{\# x, y, dx, dy, d2x, d2y, d3x, d3y = u}
+\NormalTok{  du[}\FloatTok{1}\OperatorTok{:}\FloatTok{6}\NormalTok{] }\OperatorTok{=}\NormalTok{ u[}\FloatTok{7}\OperatorTok{:}\FloatTok{8}\NormalTok{]}
 \NormalTok{  du[}\FloatTok{7}\NormalTok{] }\OperatorTok{=} \FunctionTok{f1}\NormalTok{(t, u[}\FloatTok{1}\OperatorTok{:}\FloatTok{6}\NormalTok{])}
 \NormalTok{  du[}\FloatTok{8}\NormalTok{] }\OperatorTok{=} \FunctionTok{f2}\NormalTok{(t, u[}\FloatTok{1}\OperatorTok{:}\FloatTok{6}\NormalTok{])}
-\NormalTok{  du[}\FloatTok{9}\NormalTok{] }\OperatorTok{=} \FunctionTok{f3}\NormalTok{(t, u[}\FloatTok{1}\OperatorTok{:}\FloatTok{6}\NormalTok{])}
 \KeywordTok{end}
 \end{Highlighting}
 \end{Shaded}
 
-Hence, a function like \texttt{f2(t,\ u)\ =\ u{[}1{]}*u{[}6{]}\^{}2}
-would correspond to a term \(y'' = x (z')^2\) in the original ODE. This
+Hence, a function like \texttt{f2(t,\ u)\ =\ u{[}1{]}*u{[}4{]}\^{}2}
+would correspond to a term \(y''' = x (y')^2\) in the original ODE. This
 suggests that the final library functions we create should be of the
 form \texttt{f(t,\ u)}. Generalizing this pattern, we now define a
 simple helper function to build this for us, given our library functions
 and order.
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, toptitle=1mm, toprule=.15mm, rightrule=.15mm, arc=.35mm, bottomrule=.15mm, opacityback=0, colback=white, breakable, left=2mm, opacitybacktitle=0.6, bottomtitle=1mm, leftrule=.75mm, titlerule=0mm, colframe=quarto-callout-tip-color-frame, coltitle=black, title={Generate a function applying library functions to an integrand (Julia
-implementation)}]
+\begin{tcolorbox}[enhanced jigsaw, bottomrule=.15mm, toprule=.15mm, coltitle=black, colframe=quarto-callout-tip-color-frame, colbacktitle=quarto-callout-tip-color!10!white, bottomtitle=1mm, toptitle=1mm, opacitybacktitle=0.6, titlerule=0mm, title={Generate a function applying library functions to an integrand (Julia
+implementation)}, left=2mm, leftrule=.75mm, rightrule=.15mm, breakable, colback=white, arc=.35mm, opacityback=0]
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{library\_to\_odefun}\NormalTok{(library}\OperatorTok{::}\DataTypeTok{Vector\{\textless{}:Function\}}\NormalTok{, ode\_order}\OperatorTok{::}\DataTypeTok{Integer}\NormalTok{)}
 \NormalTok{  n\_vars }\OperatorTok{=} \FunctionTok{length}\NormalTok{(library)}
 
-  \KeywordTok{function} \FunctionTok{odefun!}\NormalTok{(du, u, p, t)}
-\NormalTok{    du[}\FloatTok{1}\OperatorTok{:}\NormalTok{n\_vars}\OperatorTok{*}\NormalTok{ode\_order] }\OperatorTok{.=}\NormalTok{ u[ode\_order}\OperatorTok{+}\FloatTok{1}\OperatorTok{:}\FunctionTok{n\_vars*}\NormalTok{(ode\_order}\OperatorTok{+}\FloatTok{1}\NormalTok{)] }
-\NormalTok{    i }\OperatorTok{=}\NormalTok{ n\_vars}\OperatorTok{*}\NormalTok{ode\_order}\OperatorTok{+}\FloatTok{1}\OperatorTok{:}\FunctionTok{n\_vars*}\NormalTok{(ode\_order}\OperatorTok{+}\FloatTok{1}\NormalTok{)}
-    \ControlFlowTok{for}\NormalTok{ j }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{length}\NormalTok{(library)}
-\NormalTok{      du[i[j]] }\OperatorTok{=}\NormalTok{ library[j](t, u[}\FloatTok{1}\OperatorTok{:}\NormalTok{n\_vars}\OperatorTok{*}\NormalTok{ode\_order])}
+  \ControlFlowTok{if}\NormalTok{ ode\_order }\OperatorTok{==} \FloatTok{1}
+    \KeywordTok{function} \FunctionTok{odefun1!}\NormalTok{(du, u, p, t)}
+      \ControlFlowTok{for}\NormalTok{ i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\NormalTok{n\_vars}
+\NormalTok{        du[i] }\OperatorTok{=}\NormalTok{ library[i](t, u)}
+      \ControlFlowTok{end}
     \ControlFlowTok{end}
+\NormalTok{  else}
+\NormalTok{    n\_du }\OperatorTok{=}\NormalTok{ n\_vars}\OperatorTok{*}\NormalTok{ode\_order}
+\NormalTok{    idx\_v }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\NormalTok{n\_du}\OperatorTok{{-}}\NormalTok{n\_vars}
+\NormalTok{    idx\_f }\OperatorTok{=}\NormalTok{ n\_du}\OperatorTok{{-}}\NormalTok{n\_vars}\OperatorTok{+}\FloatTok{1}\OperatorTok{:}\NormalTok{n\_du}
+
+    \KeywordTok{function} \FunctionTok{odefunN!}\NormalTok{(du, u, p, t)}
+      \ControlFlowTok{for}\NormalTok{ i }\KeywordTok{in}\NormalTok{ idx\_v}
+\NormalTok{        du[i] }\OperatorTok{=}\NormalTok{ u[i }\OperatorTok{+}\NormalTok{ n\_vars]}
+      \ControlFlowTok{end}
+
+      \ControlFlowTok{for}\NormalTok{ i }\KeywordTok{in}\NormalTok{ idx\_f, j }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\NormalTok{n\_vars}
+\NormalTok{        du[i] }\OperatorTok{=}\NormalTok{ library[j](t, u[idx\_v])}
+      \ControlFlowTok{end}
+    \KeywordTok{end}
   \KeywordTok{end}
 \KeywordTok{end}
 \end{Highlighting}
@@ -763,12 +776,13 @@ to create lists of every possible multivariable monomial by hand. We
 therefore automate this process using the \texttt{polynomials} function
 below. This function will be our primary library creation tool which
 means that for now we will be restricted to polynomial terms in the
-coordinates, their derivatives, and arbitrary user-defined functions.
+coordinates and their derivatives. Arbitrary user-defined functions are
+still allowed of course, but they must be defined manually.
 
-\begin{tcolorbox}[enhanced jigsaw, colbacktitle=quarto-callout-tip-color!10!white, toptitle=1mm, toprule=.15mm, rightrule=.15mm, arc=.35mm, bottomrule=.15mm, opacityback=0, colback=white, breakable, left=2mm, opacitybacktitle=0.6, bottomtitle=1mm, leftrule=.75mm, titlerule=0mm, colframe=quarto-callout-tip-color-frame, coltitle=black, title={Compute arbitrary polynomial functions of variables and their
-derivatives (Julia implementation)}]
+\begin{tcolorbox}[enhanced jigsaw, bottomrule=.15mm, toprule=.15mm, coltitle=black, colframe=quarto-callout-tip-color-frame, colbacktitle=quarto-callout-tip-color!10!white, bottomtitle=1mm, toptitle=1mm, opacitybacktitle=0.6, titlerule=0mm, title={Compute arbitrary polynomial functions of variables and their
+derivatives (Julia implementation)}, left=2mm, leftrule=.75mm, rightrule=.15mm, breakable, colback=white, arc=.35mm, opacityback=0]
 
-\phantomsection\label{annotated-cell-18}%
+\phantomsection\label{annotated-cell-20}%
 \begin{Shaded}
 \begin{Highlighting}[]
 \KeywordTok{function} \FunctionTok{polynomials}\NormalTok{(}
@@ -871,65 +885,134 @@ functions suitable for use in \texttt{library\_to\_odefun}.
 
 \begin{verbatim}
 5×15 Matrix{Float64}:
- 1.0  0.421  -2.46   0.571  -4.41   0.177  …  10.8    0.326  -2.52   19.4
- 1.0  0.346   3.02   0.292   1.81   0.12       5.46   0.085   0.527   3.27
- 1.0  0.566   3.15   0.474   3.2    0.321     10.1    0.225   1.52   10.3
- 1.0  0.472  -2.04   0.579  -0.313  0.223      0.637  0.335  -0.181   0.0979
- 1.0  0.344   0.459  0.679   0.594  0.119      0.273  0.461   0.403   0.352
+ 1.0  0.246     -5.35  0.459    -2.84  …    15.2  0.21       -1.3      8.09
+ 1.0  0.28      11.5   0.73     12.0       138.0  0.533       8.77   144.0
+ 1.0  0.668    -74.2   0.519   -73.2      5430.0  0.27      -38.0   5360.0
+ 1.0  0.169    -68.3   0.0293  -66.6      4550.0  0.000857   -1.95  4440.0
+ 1.0  0.00835   31.2   0.328    38.8      1210.0  0.108      12.7   1500.0
 \end{verbatim}
 
 \clearpage
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# function lorenz!(du, u, p, t)}
-\CommentTok{\#     x, y, z = u}
-\CommentTok{\#     du[1] = 10.0 * (y {-} x)}
-\CommentTok{\#     du[2] = x * (28.0 {-} z) {-} y}
-\CommentTok{\#     du[3] = x * y {-} (8 / 3) * z}
-\CommentTok{\# end}
+\KeywordTok{function} \FunctionTok{lorenz!}\NormalTok{(du, u, p, t)}
+\NormalTok{    x, y, z }\OperatorTok{=}\NormalTok{ u}
+\NormalTok{    du[}\FloatTok{1}\NormalTok{] }\OperatorTok{=} \FloatTok{10.0} \OperatorTok{*}\NormalTok{ (y }\OperatorTok{{-}}\NormalTok{ x)}
+\NormalTok{    du[}\FloatTok{2}\NormalTok{] }\OperatorTok{=}\NormalTok{ x }\OperatorTok{*}\NormalTok{ (}\FloatTok{28.0} \OperatorTok{{-}}\NormalTok{ z) }\OperatorTok{{-}}\NormalTok{ y}
+\NormalTok{    du[}\FloatTok{3}\NormalTok{] }\OperatorTok{=}\NormalTok{ x }\OperatorTok{*}\NormalTok{ y }\OperatorTok{{-}}\NormalTok{ (}\FloatTok{8} \OperatorTok{/} \FloatTok{3}\NormalTok{) }\OperatorTok{*}\NormalTok{ z}
+\KeywordTok{end}
 
-\CommentTok{\# sol\_lorenz = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 10.0)) |\textgreater{} solve}
+\NormalTok{sol\_lorenz }\OperatorTok{=} \FunctionTok{ODEProblem}\NormalTok{(lorenz!, [}\FloatTok{1.0}\NormalTok{, }\FloatTok{1.0}\NormalTok{, }\FloatTok{1.0}\NormalTok{], (}\FloatTok{0.0}\NormalTok{, }\FloatTok{100.0}\NormalTok{)) }\OperatorTok{|\textgreater{}}\NormalTok{ solve}
 
-\CommentTok{\# times\_lorenz = range(0.0, 10.0, length = 100) |\textgreater{} collect}
-\CommentTok{\# traj\_lorenz = [sol\_lorenz(t)[i] for t in times\_lorenz, i = 1:3]}
+\NormalTok{times\_lorenz }\OperatorTok{=} \FunctionTok{range}\NormalTok{(}\FloatTok{0.0}\NormalTok{, }\FloatTok{10.0}\NormalTok{, length }\OperatorTok{=} \FloatTok{300}\NormalTok{) }\OperatorTok{|\textgreater{}}\NormalTok{ collect}
+\NormalTok{traj\_lorenz }\OperatorTok{=}\NormalTok{ [}\FunctionTok{sol\_lorenz}\NormalTok{(t)[i] for t }\KeywordTok{in}\NormalTok{ times\_lorenz, i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FloatTok{3}\NormalTok{]}
 
-\CommentTok{\# ds = derivatives(times\_lorenz, traj\_lorenz, derivative\_order = 1)}
-\CommentTok{\# x\_L, dx\_L = ds[1][:,1], ds[2][:,1]}
-\CommentTok{\# y\_L, dy\_L = ds[1][:,2], ds[2][:,2]}
-\CommentTok{\# z\_L, dz\_L = ds[1][:,3], ds[2][:,3]}
+\NormalTok{ds }\OperatorTok{=} \FunctionTok{derivatives}\NormalTok{(times\_lorenz, traj\_lorenz, derivative\_order }\OperatorTok{=} \FloatTok{1}\NormalTok{)}
+\NormalTok{x\_L, dx\_L }\OperatorTok{=}\NormalTok{ ds[}\FloatTok{1}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{1}\NormalTok{], ds[}\FloatTok{2}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{1}\NormalTok{]}
+\NormalTok{y\_L, dy\_L }\OperatorTok{=}\NormalTok{ ds[}\FloatTok{1}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{2}\NormalTok{], ds[}\FloatTok{2}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{2}\NormalTok{]}
+\NormalTok{z\_L, dz\_L }\OperatorTok{=}\NormalTok{ ds[}\FloatTok{1}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{3}\NormalTok{], ds[}\FloatTok{2}\NormalTok{][}\OperatorTok{:}\NormalTok{,}\FloatTok{3}\NormalTok{]}
 
-\CommentTok{\# target\_data = [dx\_L ;; dy\_L ;; dz\_L]}
-\CommentTok{\# library\_data, library\_names = polynomials(traj\_lorenz, 3, var\_names = ["x", "y", "z"])}
+\NormalTok{target\_data }\OperatorTok{=}\NormalTok{ [dx\_L ;; dy\_L ;; dz\_L]}
+\NormalTok{lib\_data, lib\_names, lib\_funcs }\OperatorTok{=} \FunctionTok{polynomials}\NormalTok{(times\_lorenz, traj\_lorenz, }\FloatTok{1}\NormalTok{, }\FloatTok{5}\NormalTok{, var\_names }\OperatorTok{=}\NormalTok{ [}\StringTok{"x"}\NormalTok{, }\StringTok{"y"}\NormalTok{, }\StringTok{"z"}\NormalTok{])}
 
-\CommentTok{\# rr = STRidge(target\_data, library\_data, lambda\_sparse = 0.3)}
-\CommentTok{\# pretty\_print(rr, library\_names)}
+\NormalTok{rr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(target\_data, lib\_data, lambda\_sparse }\OperatorTok{=} \FloatTok{0.02}\NormalTok{)}
+\FunctionTok{pretty\_print}\NormalTok{(rr, lib\_names)}
 \end{Highlighting}
 \end{Shaded}
+
+\begin{verbatim}
+3-element Vector{String}:
+ "0.0422*1 + -9.99*x + 10.0*y"
+ "-0.0645*1 + 27.8*x + -0.953*y + -0.996*xz"
+ "0.0236*1 + -2.66*z + 0.998*xy"
+\end{verbatim}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# points = []}
-\CommentTok{\# rrs = []}
-\CommentTok{\# n\_terms\_poss = []}
-\CommentTok{\# for lambda\_sparse in 10 .\^{} range({-}3, 1, length = 1000)}
-\CommentTok{\#   rr = STRidge(target\_data, library\_data, lambda\_sparse = lambda\_sparse, lambda\_ridge = 0.1)}
-\CommentTok{\#   rmse = sqrt(mean(abs2.(target\_data {-} library\_data * rr)))}
-\CommentTok{\#   n\_terms = count(iszero, rr)}
-
-\CommentTok{\#   if !(n\_terms in n\_terms\_poss)}
-\CommentTok{\#     push!(points, [lambda\_sparse, n\_terms, rmse])}
-\CommentTok{\#     push!(rrs, rr)}
-\CommentTok{\#     push!(n\_terms\_poss, n\_terms)}
-\CommentTok{\#   else}
-\CommentTok{\#     points[end] = [lambda\_sparse, n\_terms, rmse]}
-\CommentTok{\#     rrs[end] = rr}
-\CommentTok{\#   end}
-\CommentTok{\# end}
-\CommentTok{\# points = stack(points, dims = 1)}
-\CommentTok{\# scatter(log10.(points[:,1]), points[:,3], color = points[:,2])}
+\NormalTok{f\_lib }\OperatorTok{=}\NormalTok{ [(t, u) }\OperatorTok{{-}\textgreater{}} \FunctionTok{sum}\NormalTok{([rr[i,j] }\OperatorTok{.*}\NormalTok{ lib\_funcs[i](t, u) for i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(rr, }\FloatTok{1}\NormalTok{)]) for j }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(rr, }\FloatTok{2}\NormalTok{)]}
+\NormalTok{lorenz\_sindy }\OperatorTok{=} \FunctionTok{ODEProblem}\NormalTok{(}\FunctionTok{library\_to\_odefun}\NormalTok{(f\_lib, }\FloatTok{1}\NormalTok{), [}\FloatTok{1.0}\NormalTok{, }\FloatTok{1.0}\NormalTok{, }\FloatTok{1.0}\NormalTok{], (}\FloatTok{0.0}\NormalTok{, }\FloatTok{100.0}\NormalTok{)) }
+\NormalTok{sol\_lorenz\_sindy }\OperatorTok{=}\NormalTok{ lorenz\_sindy }\OperatorTok{|\textgreater{}}\NormalTok{ solve}
+\NormalTok{traj\_lorenz\_sindy }\OperatorTok{=}\NormalTok{ [}\FunctionTok{sol\_lorenz\_sindy}\NormalTok{(t)[i] for t }\KeywordTok{in}\NormalTok{ times\_lorenz, i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FloatTok{3}\NormalTok{]}
 \end{Highlighting}
 \end{Shaded}
+
+\begin{verbatim}
+300×3 Matrix{Float64}:
+   1.0        1.0       1.0
+   1.13275    1.89103   0.964114
+   1.50576    2.9797    0.984375
+   2.13768    4.4713    1.11641
+   3.10268    6.59329   1.48211
+   4.524      9.60807   2.33825
+   6.56404   13.7557    4.20224
+   9.37718   19.009     8.02201
+  12.9476    24.4209   15.1535
+  16.7392    27.1853   26.3659
+   ⋮                   
+ -11.7847   -13.8124   28.8404
+ -12.1861   -12.5068   31.4448
+ -11.972    -10.3593   33.22
+ -11.1439    -7.88874  33.7796
+  -9.88018   -5.70539  33.1771
+  -8.44318   -4.14893  31.7634
+  -7.07735   -3.27249  29.9616
+  -5.9349    -2.94548  28.0432
+  -5.08647   -3.00728  26.1707
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{fig }\OperatorTok{=} \FunctionTok{Figure}\NormalTok{()}
+\NormalTok{ax }\OperatorTok{=} \FunctionTok{Axis}\NormalTok{(fig[}\FloatTok{1}\NormalTok{, }\FloatTok{1}\NormalTok{])}
+\NormalTok{labels }\OperatorTok{=}\NormalTok{ [}\StringTok{"x"}\NormalTok{, }\StringTok{"y"}\NormalTok{, }\StringTok{"z"}\NormalTok{]}
+\NormalTok{labels\_sindy }\OperatorTok{=}\NormalTok{ [}\StringTok{"x\_SINDy"}\NormalTok{, }\StringTok{"y\_SINDy"}\NormalTok{, }\StringTok{"z\_SINDy"}\NormalTok{]}
+\ControlFlowTok{for}\NormalTok{ i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(traj\_lorenz, }\FloatTok{2}\NormalTok{)}
+  \FunctionTok{lines!}\NormalTok{(ax, times\_lorenz, traj\_lorenz[}\OperatorTok{:}\NormalTok{,i], label }\OperatorTok{=}\NormalTok{ labels[i])}
+\ControlFlowTok{end}
+
+\ControlFlowTok{for}\NormalTok{ i }\OperatorTok{=} \FloatTok{1}\OperatorTok{:}\FunctionTok{size}\NormalTok{(traj\_lorenz, }\FloatTok{2}\NormalTok{)}
+  \FunctionTok{lines!}\NormalTok{(ax, times\_lorenz, traj\_lorenz\_sindy[}\OperatorTok{:}\NormalTok{,i], linestyle }\OperatorTok{=} \OperatorTok{:}\NormalTok{dash, label }\OperatorTok{=}\NormalTok{ labels\_sindy[i])}
+\ControlFlowTok{end}
+
+\FunctionTok{axislegend}\NormalTok{(ax)}
+
+\CommentTok{\# xlims!(1,20)}
+\NormalTok{fig}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{test_files/figure-pdf/cell-27-output-1.png}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{points }\OperatorTok{=}\NormalTok{ []}
+\NormalTok{rrs }\OperatorTok{=}\NormalTok{ []}
+\NormalTok{n\_terms\_poss }\OperatorTok{=}\NormalTok{ []}
+\ControlFlowTok{for}\NormalTok{ lambda\_sparse }\KeywordTok{in} \FloatTok{10} \OperatorTok{.\^{}} \FunctionTok{range}\NormalTok{(}\OperatorTok{{-}}\FloatTok{3}\NormalTok{, }\FloatTok{1}\NormalTok{, length }\OperatorTok{=} \FloatTok{1000}\NormalTok{)}
+\NormalTok{  rr }\OperatorTok{=} \FunctionTok{STRidge}\NormalTok{(target\_data, lib\_data, lambda\_sparse }\OperatorTok{=}\NormalTok{ lambda\_sparse, lambda\_ridge }\OperatorTok{=} \FloatTok{0.1}\NormalTok{)}
+\NormalTok{  rmse }\OperatorTok{=} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{mean}\NormalTok{(}\FunctionTok{abs2}\NormalTok{.(target\_data }\OperatorTok{{-}}\NormalTok{ lib\_data }\OperatorTok{*}\NormalTok{ rr)))}
+\NormalTok{  n\_terms }\OperatorTok{=} \FunctionTok{count}\NormalTok{(iszero, rr)}
+
+  \ControlFlowTok{if}\NormalTok{ !(n\_terms }\KeywordTok{in}\NormalTok{ n\_terms\_poss)}
+    \FunctionTok{push!}\NormalTok{(points, [lambda\_sparse, n\_terms, rmse])}
+    \FunctionTok{push!}\NormalTok{(rrs, rr)}
+    \FunctionTok{push!}\NormalTok{(n\_terms\_poss, n\_terms)}
+  \ControlFlowTok{else}
+\NormalTok{    points[}\KeywordTok{end}\NormalTok{] }\OperatorTok{=}\NormalTok{ [lambda\_sparse, n\_terms, rmse]}
+\NormalTok{    rrs[}\KeywordTok{end}\NormalTok{] }\OperatorTok{=}\NormalTok{ rr}
+  \ControlFlowTok{end}
+\ControlFlowTok{end}
+\NormalTok{points }\OperatorTok{=} \FunctionTok{stack}\NormalTok{(points, dims }\OperatorTok{=} \FloatTok{1}\NormalTok{)}
+
+\NormalTok{fig }\OperatorTok{=} \FunctionTok{Figure}\NormalTok{()}
+\NormalTok{ax }\OperatorTok{=} \FunctionTok{Axis}\NormalTok{(fig[}\FloatTok{1}\NormalTok{, }\FloatTok{1}\NormalTok{], xlabel }\OperatorTok{=}\NormalTok{ L}\StringTok{"\textbackslash{}log10(\textbackslash{}lambda)"}\NormalTok{, ylabel }\OperatorTok{=} \StringTok{"RMSE"}\NormalTok{)}
+\FunctionTok{scatter!}\NormalTok{(ax, }\FunctionTok{log10}\NormalTok{.(points[}\OperatorTok{:}\NormalTok{,}\FloatTok{1}\NormalTok{]), points[}\OperatorTok{:}\NormalTok{,}\FloatTok{3}\NormalTok{], color }\OperatorTok{=}\NormalTok{ points[}\OperatorTok{:}\NormalTok{,}\FloatTok{2}\NormalTok{])}
+\NormalTok{fig}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{test_files/figure-pdf/cell-28-output-1.png}
 
 \begin{Shaded}
 \begin{Highlighting}[]
