@@ -697,11 +697,11 @@ fig
 
 ## E-SINDy
 
-# Julia Implementation
+# Application to Gulf Stream Data
 
-# Results
+## Setup
 
-## Direct sparse representations
+
 
 ## Fluid
 
