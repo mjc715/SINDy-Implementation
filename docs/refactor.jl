@@ -48,7 +48,7 @@ end
 # ╔═╡ 877ef8d8-2499-4692-a26a-b345efbd597a
 function STRidge(
 	target_data::Vector{<:Real}, 
-	library_data::Matrix{<:Real};
+	library_data::Matrix{<:Real}; # N_times x N_vars
 	options::STRidgeOptions = STRidgeOptions())
 
 	lambda_sparse, lambda_ridge, max_iters = options.lambda_sparse, options.lambda_ridge, options.max_iters
@@ -63,7 +63,7 @@ function STRidge(
 	  Xi[biginds] = rr(library_data[:, biginds])
 	end
 
-  return Xi
+  return Xi # N_vars
 end
 
 # ╔═╡ e6db750f-73bc-4f4a-b6d2-ff27a575d694
@@ -77,7 +77,7 @@ function STRidge(
         Xi[:,i] .= STRidge(target_data[:, i], library_data, options = options) 
     end
 
-    return Xi
+    return Xi # N_vars x N_targets
 end
 
 # ╔═╡ 831a346a-3200-497f-87c3-f6bca5d2e146
@@ -99,15 +99,28 @@ function calculate_derivatives(
   return Dict(i => [diff(S, Derivative(i))(t) for t in times, S in itps] for i = 0:derivative_order)
 end
 
+# ╔═╡ aa630bbe-1447-4a89-b32f-86911d35661c
+struct LibFun{F<:Function}
+	f::F
+	name::String
+
+	function LibFun(f::Function, name::Union{String, Nothing} = nothing)
+		return new{typeof(f)}(f, name === nothing ? "?" : name)
+	end
+end
+
 # ╔═╡ 4621b7dd-530e-4488-8952-8581195ec976
-struct SparseDynamicsProblem
+mutable struct SparseDynamicsProblem
 	t::Vector{Float64}
 	traj::Matrix{Float64}
 	order::Int64
-	data::Matrix{Float64}
+	var_data::Vector{Vector{Float64}} # [var1.(t), var2.(t), ...]
+	var_names::Vector{String} # length(var_names) == length(var_data)
+	var_functions::Vector{LibFun}
 	target::Matrix{Float64}
-	var_names::Vector{String}
-
+	library_data::Vector{Vector{Float64}}
+	library_functions::Vector{LibFun}
+	
 	function SparseDynamicsProblem(
 		t::Vector{<:Real}, 
 		traj::Matrix{<:Real}, 
@@ -122,54 +135,119 @@ struct SparseDynamicsProblem
 		order = convert(Int64, order)
 
 		ds = calculate_derivatives(t, traj, order)
-		data = hcat([ds[key] for key = 0:order-1]...)
+		var_data = hcat([ds[key] for key = 0:order-1]...)
+		var_data = [var_data[:,i] for i = 1:size(var_data, 2)]
 		target = ds[order]
 
 		var_names = var_names === nothing ? ["x$(i)" for i = 1:n_vars] : var_names
 		@assert length(var_names) == n_vars
 
 		for j = 1:order-1, i = 1:n_vars
-			push!(var_names, "d$(j == 1 ? "" : "^$(j)")$(var_names[i])")
+			push!(var_names, "∂$(j == 1 ? "" : "^$(j)")$(var_names[i])")
 		end
+
+		var_funcs = [LibFun((t, u) -> u[i], var_names[i]) for i = 1:length(var_names)]
 		
-		return new(t, traj, order, data, target, var_names)
+		return new(t, traj, order, var_data, var_names, var_funcs, target, Vector{Float64}[], LibFun[])
 	end
 end
 
-# ╔═╡ 28153fa4-4918-4cec-aeea-1599dc199a13
-md"""
-- Library function $x y^2$
-
-```julia
-function f_for_library(sdp)
-	t, data = sdp.t, sdp.data
-	x = data[:,1]
-	y = data[:,2]
-
-	return x .* (y .^ 2)
+# ╔═╡ 0eca8a7c-ec2a-4b97-a8cf-65282bc5b7e0
+function add_library_function!(sdp::SparseDynamicsProblem, library_function::LibFun)
+	push!(sdp.library_data, library_function.f(sdp.t, sdp.var_data))
+	push!(sdp.library_functions, library_function)
+	return nothing
 end
 
-function f_for_ode(du, u, p, t)
-	return u[1] .* (u[2] .^ 2)
+# ╔═╡ ee9f84a0-a949-45b4-81d4-e8ac73236420
+function add_library_function!(sdp::SparseDynamicsProblem, library_function::Vector{LibFun})
+	for lib_fun in library_function
+		add_library_function!(sdp, lib_fun)
+	end
+
+	return nothing
 end
-```
-"""
 
-# ╔═╡ 171e20bd-773f-40f7-954f-6f0393d460cb
-md"""
-3 vars, order = 1 \
-u[1:3] = x, y, z
+# ╔═╡ 74742e45-c5d5-45a1-b161-f63ab82bd0d7
+function polynomials(
+  lib_funcs::Vector{LibFun},
+  poly_order::Integer)
 
-3 vars, order = 2 \
-u[1:3] = x, y, z \
-u[4:6] = dx, dy, dz
-"""
+  @assert length(lib_funcs) >= 1
+  @assert poly_order >= 0
 
-# ╔═╡ 45964a2a-2de6-4959-ad4d-cc85d93b3d29
-blah = rand(4)
+  n_vars = length(lib_funcs)
+  funcs = LibFun[]
 
-# ╔═╡ 49ca359f-958a-439e-9134-28b5ff0301a7
-blah[3,:]
+  for i = 0:poly_order, ex in multiexponents(n_vars, i)
+    name = "" 
+    for i = 1:n_vars
+      if ex[i] != 0
+		  if ex[i] == 1
+			  name *= lib_funcs[i].name
+		  else
+			  name *= "[$(lib_funcs[i].name)]^$(ex[i])"
+		  end
+      end
+    end
+
+	fn = LibFun(
+		(t, u) -> reduce(.*, lib_funcs[i].f(t, u) .^ ex[i] for i = 1:n_vars), 
+		name)
+	  
+    push!(funcs, fn)
+  end
+
+  return funcs
+end
+
+# ╔═╡ 7532911c-da81-4ab9-92da-affa677d6e27
+struct SparseDynamicsResult{VM, F}
+	coeffs::VM
+	odefun::F
+
+	function SparseDynamicsResult(sdp::SparseDynamicsProblem, coeffs::VM) where {VM}
+		f = [(t, u) -> sum(
+			coeffs[var_idx, target_idx]*sdp.library_functions[var_idx].f(t, u) 
+				for var_idx = 1:size(coeffs, 1))
+		for target_idx = 1:size(coeffs, 2)]
+
+		n_vars = length(sdp.var_names)
+		order = sdp.order
+
+		if order == 1
+			function odefun1!(du, u, p, t)
+				for i = 1:n_vars
+					du[i] = f[i](t, u)
+				end
+			end
+		
+			return new{VM, typeof(odefun1!)}(coeffs, odefun1!)
+		else
+		    n_du = n_vars*order
+		    idx_v = 1:n_du-n_vars
+		    idx_f = n_du-n_vars+1:n_du
+		
+		    function odefunN!(du, u, p, t)
+		      for i in idx_v
+		        du[i] = u[i + n_vars]
+		      end
+		
+		      for i in idx_f, j = 1:n_vars
+		        du[i] = f[j](t, u[idx_v])
+		      end
+		    end
+		
+			return new{VM, typeof(odefunN!)}(coeffs, odefunN!)
+		end
+	end
+end
+
+# ╔═╡ 1b3ed7d7-bb7c-4faf-ab89-5c65f816578b
+function STRidge(sdp::SparseDynamicsProblem; options::STRidgeOptions = STRidgeOptions())
+	coeffs = STRidge(sdp.target, stack(sdp.library_data), options = options)
+	return SparseDynamicsResult(sdp, coeffs)
+end
 
 # ╔═╡ 7388ca53-d7aa-4e95-a830-c99381550413
 md"""
@@ -181,6 +259,14 @@ md"""
 ## Lorenz
 """
 
+# ╔═╡ 0d4d2c16-0669-451b-99ee-8ea93c172f87
+begin
+	ics_lorenz = [1.0, 1.0, 1.0]
+	tspan_lorenz = (0.0, 10.0)
+	n_times_lorenz = 300
+	nothing
+end
+
 # ╔═╡ 5b5eb1dd-ab3e-4f6e-8189-c123c6505252
 begin
 	function lorenz!(du, u, p, t)
@@ -189,16 +275,45 @@ begin
 	    du[2] = x * (28.0 - z) - y
 	    du[3] = x * y - (8 / 3) * z
 	end
-	
-	sol_lorenz = ODEProblem(lorenz!, [1.0, 1.0, 1.0], (0.0, 100.0)) |> solve
-	
-	times_lorenz = range(0.0, 10.0, length = 300) |> collect
+
+	sol_lorenz = ODEProblem(lorenz!, ics_lorenz, tspan_lorenz) |> solve
+	times_lorenz = range(tspan_lorenz[1], tspan_lorenz[2], length = n_times_lorenz) |> collect
 	traj_lorenz = [sol_lorenz(t)[i] for t in times_lorenz, i = 1:3]
 	nothing
 end
 
-# ╔═╡ 96afa568-6d2d-40b5-984c-ca3317736dce
-sdp_lorenz = SparseDynamicsProblem(times_lorenz, traj_lorenz, 3, var_names = ["x", "y", "z"])
+# ╔═╡ 22a674b3-5fa3-4cfe-b854-d3fef37e6f02
+begin
+	sdp_lorenz = SparseDynamicsProblem(times_lorenz, traj_lorenz, 1, var_names = ["x", "y", "z"])
+	
+	polys = polynomials(sdp_lorenz.var_functions, 2)
+	add_library_function!(sdp_lorenz, polys)
+	
+	sdr_lorenz = STRidge(sdp_lorenz)
+
+	sol_lorenz_sindy = ODEProblem(sdr_lorenz.odefun, ics_lorenz, tspan_lorenz) |> solve
+	traj_lorenz_sindy = [sol_lorenz_sindy(t)[i] for t in times_lorenz, i = 1:3]
+	nothing
+end
+
+# ╔═╡ 35a4d5d1-a490-4853-a141-48bbc8a194da
+let
+	fig = Figure()
+	ax = Axis(fig[1, 1])
+	labels = [L"x", L"y", L"z"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	for i = 1:size(traj_lorenz, 2)
+	  lines!(ax, times_lorenz, traj_lorenz[:,i], label = labels[i])
+	end
+	
+	for i = 1:size(traj_lorenz, 2)
+	  lines!(ax, times_lorenz, traj_lorenz_sindy[:,i], linestyle = :dash, label = labels_sindy[i])
+	end
+	
+	axislegend(ax)
+
+	fig
+end
 
 # ╔═╡ 788f628e-c77c-49a5-ac81-a527ede9cfbd
 md"""
@@ -2531,15 +2646,19 @@ version = "3.5.0+0"
 # ╠═877ef8d8-2499-4692-a26a-b345efbd597a
 # ╠═e6db750f-73bc-4f4a-b6d2-ff27a575d694
 # ╠═831a346a-3200-497f-87c3-f6bca5d2e146
+# ╠═aa630bbe-1447-4a89-b32f-86911d35661c
 # ╠═4621b7dd-530e-4488-8952-8581195ec976
-# ╟─96afa568-6d2d-40b5-984c-ca3317736dce
-# ╠═28153fa4-4918-4cec-aeea-1599dc199a13
-# ╟─171e20bd-773f-40f7-954f-6f0393d460cb
-# ╠═45964a2a-2de6-4959-ad4d-cc85d93b3d29
-# ╠═49ca359f-958a-439e-9134-28b5ff0301a7
+# ╠═0eca8a7c-ec2a-4b97-a8cf-65282bc5b7e0
+# ╠═ee9f84a0-a949-45b4-81d4-e8ac73236420
+# ╠═74742e45-c5d5-45a1-b161-f63ab82bd0d7
+# ╠═7532911c-da81-4ab9-92da-affa677d6e27
+# ╠═1b3ed7d7-bb7c-4faf-ab89-5c65f816578b
 # ╟─7388ca53-d7aa-4e95-a830-c99381550413
 # ╟─442f6240-b1b7-4662-a9a9-989795f13c63
+# ╠═0d4d2c16-0669-451b-99ee-8ea93c172f87
 # ╠═5b5eb1dd-ab3e-4f6e-8189-c123c6505252
+# ╠═22a674b3-5fa3-4cfe-b854-d3fef37e6f02
+# ╠═35a4d5d1-a490-4853-a141-48bbc8a194da
 # ╟─788f628e-c77c-49a5-ac81-a527ede9cfbd
 # ╟─6ca5c925-621e-4d6f-a379-e20d4f7bc225
 # ╠═4f9982e3-e539-446d-9e37-fe2a71d3933b
