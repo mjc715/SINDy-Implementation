@@ -100,17 +100,25 @@ function calculate_derivatives(
 end
 
 # ╔═╡ aa630bbe-1447-4a89-b32f-86911d35661c
-struct LibFun{F<:Function}
-	f::F
-	name::String
+begin
+	struct LibFun{F<:Function}
+		f::F # should return a number
+		name::String
+	
+		function LibFun(f::Function, name::Union{String, Nothing} = nothing)
+			return new{typeof(f)}(f, name === nothing ? "?" : name)
+		end
+	end
+	
+	function (lf::LibFun)(t::Real, u::Vector{<:Real})
+		return lf.f(t, u)
+	end
 
-	function LibFun(f::Function, name::Union{String, Nothing} = nothing)
-		return new{typeof(f)}(f, name === nothing ? "?" : name)
+	function (lf::LibFun)(t::Vector{<:Real}, u::Vector{<:Vector{<:Real}})
+		@assert all(length(t) == length(u[i]) for i = 1:length(u))
+		return [lf(t[i], [u[j][i] for j = 1:length(u)]) for i = 1:length(t)]
 	end
 end
-
-# ╔═╡ 0c57a428-8d1d-4b5f-9bb0-8a6fe992c62b
-# function (::LibFun)(t, u)
 
 # ╔═╡ 4621b7dd-530e-4488-8952-8581195ec976
 mutable struct SparseDynamicsProblem
@@ -157,7 +165,7 @@ end
 
 # ╔═╡ 0eca8a7c-ec2a-4b97-a8cf-65282bc5b7e0
 function add_library_function!(sdp::SparseDynamicsProblem, library_function::LibFun)
-	push!(sdp.library_data, library_function.f(sdp.t, sdp.var_data))
+	push!(sdp.library_data, library_function(sdp.t, sdp.var_data))
 	push!(sdp.library_functions, library_function)
 	return nothing
 end
@@ -195,7 +203,7 @@ function polynomials(
     end
 
 	fn = LibFun(
-		(t, u) -> reduce(.*, lib_funcs[i].f(t, u) .^ ex[i] for i = 1:n_vars), 
+		(t, u) -> prod(lib_funcs[i](t, u)^ex[i] for i = 1:n_vars), 
 		name)
 	  
     push!(funcs, fn)
@@ -207,6 +215,7 @@ end
 # ╔═╡ 7532911c-da81-4ab9-92da-affa677d6e27
 struct SparseDynamicsResult{VM, F}
 	coeffs::VM
+	rmse::Vector{Float64}
 	names::Vector{String}
 	odefun::F
 
@@ -214,9 +223,11 @@ struct SparseDynamicsResult{VM, F}
 		n_vars = length(sdp.var_names)
 		n_libs = size(coeffs, 1)
 		n_targets = size(coeffs, 2)
+
+		rmse = [sqrt(mean(abs2.(sdp.target[:,target_idx] - sum(sdp.library_data .* coeffs[:,target_idx])))) for target_idx = 1:n_targets]
 		
 		f = [(t, u) -> sum(
-			coeffs[lib_idx, target_idx]*sdp.library_functions[lib_idx].f(t, u) 
+			coeffs[lib_idx, target_idx]*sdp.library_functions[lib_idx](t, u) 
 				for lib_idx = 1:n_libs)
 		for target_idx = 1:n_targets]
 
@@ -243,7 +254,7 @@ struct SparseDynamicsResult{VM, F}
 				end
 			end
 		
-			return new{VM, typeof(odefun1!)}(coeffs, names, odefun1!)
+			return new{VM, typeof(odefun1!)}(coeffs, rmse, names, odefun1!)
 		else
 		    n_du = n_vars*order
 		    idx_v = 1:n_du-n_vars
@@ -259,7 +270,7 @@ struct SparseDynamicsResult{VM, F}
 		      end
 		    end
 		
-			return new{VM, typeof(odefunN!)}(coeffs, names, odefunN!)
+			return new{VM, typeof(odefunN!)}(coeffs, rmse, names, odefunN!)
 		end
 	end
 end
@@ -358,11 +369,8 @@ md"""
 ## Fluid
 """
 
-# ╔═╡ eabb2085-565f-465e-8e76-47c1f114850a
-# x0max =  -500+250;
-# x0min = -1250+250;
-# y0max =  -500+250;
-# y0min = -1250+250;
+# ╔═╡ 0e51b25d-55d0-4c0d-b2fd-3e951329266f
+ics_fluid = [-700, -700] .+ (3*rand(), 3*rand())
 
 # ╔═╡ 788f628e-c77c-49a5-ac81-a527ede9cfbd
 md"""
@@ -455,14 +463,13 @@ end
 
 # ╔═╡ bb5174ab-523e-4363-ba47-38d9c47f0de4
 begin
-	ics_fluid = [-700, -700] 		
 	tspan_fluid_test = (0.0, 120.0)
-	n_times_fluid = 300 	
+	n_times_fluid = 1000 	
 	tspan_fluid_train = (0.0, 90.0)
 
 	###
 
-	sol_fluid = ODEProblem(f_fluid!, ics_fluid, tspan_fluid_test) |> solve
+	sol_fluid = ODEProblem(f_fluid!, ics_fluid, tspan_fluid_test) |> x -> solve(x, Tsit5())
 	
 	times_fluid_train = range(tspan_fluid_train[1], tspan_fluid_train[2], length = n_times_fluid) |> collect
 	traj_fluid_train = [sol_fluid(t)[i] for t in times_fluid_train, i = 1:length(ics_fluid)]
@@ -473,27 +480,102 @@ begin
 	nothing
 end
 
+# ╔═╡ cd6228f3-8b1c-40e1-bda4-b62de5d9b483
+let
+	points = []
+	global sdrs_fluid = []
+	n_terms_poss = []
+	for lambda_sparse in 10 .^ range(-3, 1, length = 1000)
+	  sdp_fluid = SparseDynamicsProblem(times_fluid_train, traj_fluid_train, 1, var_names = ["x", "y"])
+	
+	  x_fluid, y_fluid = sdp_fluid.var_functions
+	  vx_fluid = LibFun((t, u) -> vx(x_fluid(t, u), y_fluid(t, u), t), "vx")
+	  vy_fluid = LibFun((t, u) -> vy(x_fluid(t, u), y_fluid(t, u), t), "vy") 
+	  lib_funs_fluid = [x_fluid, y_fluid, vx_fluid, vy_fluid]
+		
+	  polys_fluid = polynomials(lib_funs_fluid, 2)
+	  add_library_function!(sdp_fluid, polys_fluid)
+	
+      options_fluid = STRidgeOptions(lambda_sparse = lambda_sparse, lambda_ridge = 0.1, max_iters = 10)
+	  sdr_fluid = STRidge(sdp_fluid, options = options_fluid)
+		
+	  rmse = sdr_fluid.rmse |> x -> sum(x)/length(x)
+	  n_terms = count(iszero, sdr_fluid.coeffs)
+	
+	  if !(n_terms in n_terms_poss)
+	    push!(points, [lambda_sparse, n_terms, rmse])
+	    push!(sdrs_fluid, sdr_fluid)
+	    push!(n_terms_poss, n_terms)
+	  else
+	    points[end] = [lambda_sparse, n_terms, rmse]
+	    sdrs_fluid[end] = sdr_fluid
+	  end
+	end
+	points = stack(points, dims = 1)
+	
+	fig = Figure()
+	ax = Axis(fig[1, 1], xlabel = L"\log10(\lambda)", ylabel = "RMSE")
+	scatter!(ax, log10.(points[:,1]), points[:,3], color = points[:,2])
+	fig
+end
+
+# ╔═╡ 9ee63a0b-a267-4236-94ab-9d80e4d46463
+sdrs_fluid
+
 # ╔═╡ 2d5dbfc0-a36a-4f15-8cf7-818295e69574
 begin
 	sdp_fluid = SparseDynamicsProblem(times_fluid_train, traj_fluid_train, 1, var_names = ["x", "y"])
 
 	x_fluid, y_fluid = sdp_fluid.var_functions
-	vx_fluid = LibFun((t, u) -> vx(x_fluid.f(t, u), y_fluid.f(t, u), t), "vx")
-	vy_fluid = LibFun((t, u) -> vy(x_fluid.f(t, u), y_fluid.f(t, u), t), "vy") 
+	vx_fluid = LibFun((t, u) -> vx(x_fluid(t, u), y_fluid(t, u), t), "vx")
+	vy_fluid = LibFun((t, u) -> vy(x_fluid(t, u), y_fluid(t, u), t), "vy") 
 	lib_funs_fluid = [x_fluid, y_fluid, vx_fluid, vy_fluid]
 	
-	# polys_fluid = polynomials(lib_funs_fluid, 2)
-	# add_library_function!(sdp_fluid, polys_fluid)
-	
-	# sdr_fluid = STRidge(sdp_fluid)
+	polys_fluid = polynomials(lib_funs_fluid, 2)
+	add_library_function!(sdp_fluid, polys_fluid)
 
-	# sol_fluid_sindy = ODEProblem(sdr_fluid.odefun, ics_fluid, tspan_fluid_test) |> solve
-	# traj_fluid_sindy = [sol_fluid_sindy(t)[i] for t in times_fluid_test, i = 1:length(ics_fluid)]
-	# nothing
+	options_fluid = STRidgeOptions(lambda_sparse = 0.05, lambda_ridge = 0.2, max_iters = 10)
+	sdr_fluid = STRidge(sdp_fluid, options = options_fluid)
+
+	sol_fluid_sindy = ODEProblem(sdr_fluid.odefun, ics_fluid, tspan_fluid_test) |> x -> solve(x, Tsit5())
+	traj_fluid_sindy = [sol_fluid_sindy(t)[i] for t in times_fluid_test, i = 1:length(ics_fluid)]
+	nothing
 end
 
-# ╔═╡ 6c5cfb37-40f9-41ff-93e3-da686e52f32b
-vx_fluid.f(1.0, [rand(10), rand(10)])
+# ╔═╡ a83f6ace-ab88-461e-b95c-0d7f639c6e23
+sdr_fluid.names
+
+# ╔═╡ d5318f88-f4e2-476a-bee9-5b336fb3ae10
+sdr_fluid.coeffs
+
+# ╔═╡ 39aeb386-87e1-4879-8a07-3f63df733b3f
+let
+	fig = Figure(size = (1000, 250))
+	ax = Axis(fig[1, 1], aspect = AxisAspect(2))
+	labels = [L"x", L"y"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	colors = [:blue, :red]
+	for i = 1:size(traj_fluid_test, 2)
+	  lines!(ax, times_fluid_test, traj_fluid_test[:,i], label = labels[i], color = colors[i])
+	end
+	
+	for i = 1:size(traj_fluid_sindy, 2)
+	  lines!(ax, times_fluid_test, traj_fluid_sindy[:,i], linestyle = :dash, label = labels_sindy[i], color = colors[i])
+	end
+	
+	axislegend(ax, position = :rb)
+
+	ax = Axis(fig[1, 2], aspect = AxisAspect(2))
+	labels = [L"xy(t)"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	lines!(ax, traj_fluid_test[:,1], traj_fluid_test[:,2], label = "Fluid", color = :black)
+
+	lines!(ax, traj_fluid_sindy[:,1], traj_fluid_sindy[:,2], linestyle = :dash, label = "Fluid [SINDy]", color = :red)
+	
+	axislegend(ax, position = :rb)
+
+	fig
+end
 
 # ╔═╡ 40bf79f6-585e-4d2a-a34b-58ef397a7053
 function sph2xy(lon::Real, lat::Real, eqr::EquirectangularReference)
@@ -3024,7 +3106,6 @@ version = "3.5.0+0"
 # ╠═e6db750f-73bc-4f4a-b6d2-ff27a575d694
 # ╠═831a346a-3200-497f-87c3-f6bca5d2e146
 # ╠═aa630bbe-1447-4a89-b32f-86911d35661c
-# ╠═0c57a428-8d1d-4b5f-9bb0-8a6fe992c62b
 # ╠═4621b7dd-530e-4488-8952-8581195ec976
 # ╠═0eca8a7c-ec2a-4b97-a8cf-65282bc5b7e0
 # ╠═ee9f84a0-a949-45b4-81d4-e8ac73236420
@@ -3042,10 +3123,14 @@ version = "3.5.0+0"
 # ╠═5d04a43f-98d8-475c-97a5-17c0db2a259c
 # ╠═3bd280c2-e6c3-411e-a4e8-5969afce0dd7
 # ╟─77c2ea65-cd7b-45ce-b168-7f4e5280628b
-# ╠═eabb2085-565f-465e-8e76-47c1f114850a
+# ╠═0e51b25d-55d0-4c0d-b2fd-3e951329266f
 # ╠═bb5174ab-523e-4363-ba47-38d9c47f0de4
+# ╠═cd6228f3-8b1c-40e1-bda4-b62de5d9b483
+# ╠═9ee63a0b-a267-4236-94ab-9d80e4d46463
 # ╠═2d5dbfc0-a36a-4f15-8cf7-818295e69574
-# ╠═6c5cfb37-40f9-41ff-93e3-da686e52f32b
+# ╠═a83f6ace-ab88-461e-b95c-0d7f639c6e23
+# ╠═d5318f88-f4e2-476a-bee9-5b336fb3ae10
+# ╠═39aeb386-87e1-4879-8a07-3f63df733b3f
 # ╟─788f628e-c77c-49a5-ac81-a527ede9cfbd
 # ╟─6ca5c925-621e-4d6f-a379-e20d4f7bc225
 # ╠═840cada2-6d5f-4bad-bee7-5faba2071a08
