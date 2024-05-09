@@ -15,15 +15,15 @@ begin
 	using Markdown
 	using Latexify
 	using CairoMakie; set_theme!(theme_latexfonts())
+	using MAT
+	using Interpolations: cubic_spline_interpolation
+	using SargassumColors
 end
 
 # ╔═╡ 5725e2ce-40ec-42ee-b521-2c54922bad7f
 md"""
 # Front Matter
 """
-
-# ╔═╡ 53c3e249-7cf4-44cb-84f9-9fea224bc435
-pwd()
 
 # ╔═╡ 5fad43f1-80e3-43ae-99bf-daf288b27e4f
 md"""
@@ -108,6 +108,9 @@ struct LibFun{F<:Function}
 		return new{typeof(f)}(f, name === nothing ? "?" : name)
 	end
 end
+
+# ╔═╡ 0c57a428-8d1d-4b5f-9bb0-8a6fe992c62b
+# function (::LibFun)(t, u)
 
 # ╔═╡ 4621b7dd-530e-4488-8952-8581195ec976
 mutable struct SparseDynamicsProblem
@@ -204,15 +207,33 @@ end
 # ╔═╡ 7532911c-da81-4ab9-92da-affa677d6e27
 struct SparseDynamicsResult{VM, F}
 	coeffs::VM
+	names::Vector{String}
 	odefun::F
 
 	function SparseDynamicsResult(sdp::SparseDynamicsProblem, coeffs::VM) where {VM}
-		f = [(t, u) -> sum(
-			coeffs[var_idx, target_idx]*sdp.library_functions[var_idx].f(t, u) 
-				for var_idx = 1:size(coeffs, 1))
-		for target_idx = 1:size(coeffs, 2)]
-
 		n_vars = length(sdp.var_names)
+		n_libs = size(coeffs, 1)
+		n_targets = size(coeffs, 2)
+		
+		f = [(t, u) -> sum(
+			coeffs[lib_idx, target_idx]*sdp.library_functions[lib_idx].f(t, u) 
+				for lib_idx = 1:n_libs)
+		for target_idx = 1:n_targets]
+
+		names = String[]
+		for target_idx = 1:n_targets
+			name = ""
+			for lib_idx = 1:n_libs
+				c = coeffs[lib_idx, target_idx] 
+				if !(c ≈ 0.0)
+					name *= "$(round(c, sigdigits = 3)) $(sdp.library_functions[lib_idx].name) + "
+				end
+			end
+
+			name = name[1:end-3]
+			push!(names, name)
+		end
+
 		order = sdp.order
 
 		if order == 1
@@ -222,7 +243,7 @@ struct SparseDynamicsResult{VM, F}
 				end
 			end
 		
-			return new{VM, typeof(odefun1!)}(coeffs, odefun1!)
+			return new{VM, typeof(odefun1!)}(coeffs, names, odefun1!)
 		else
 		    n_du = n_vars*order
 		    idx_v = 1:n_du-n_vars
@@ -238,7 +259,7 @@ struct SparseDynamicsResult{VM, F}
 		      end
 		    end
 		
-			return new{VM, typeof(odefunN!)}(coeffs, odefunN!)
+			return new{VM, typeof(odefunN!)}(coeffs, names, odefunN!)
 		end
 	end
 end
@@ -251,19 +272,15 @@ end
 
 # ╔═╡ 7388ca53-d7aa-4e95-a830-c99381550413
 md"""
-# Applications
-"""
-
-# ╔═╡ 442f6240-b1b7-4662-a9a9-989795f13c63
-md"""
-## Lorenz
+# Lorenz
 """
 
 # ╔═╡ 0d4d2c16-0669-451b-99ee-8ea93c172f87
 begin
-	ics_lorenz = [1.0, 1.0, 1.0]
-	tspan_lorenz = (0.0, 10.0)
-	n_times_lorenz = 300
+	ics_lorenz = [1.0, 1.0, 1.0] 		
+	tspan_lorenz_test = (0.0, 20.0)
+	n_times_lorenz = 300 	
+	tspan_lorenz_train = (0.0, 10.0)
 	nothing
 end
 
@@ -276,25 +293,33 @@ begin
 	    du[3] = x * y - (8 / 3) * z
 	end
 
-	sol_lorenz = ODEProblem(lorenz!, ics_lorenz, tspan_lorenz) |> solve
-	times_lorenz = range(tspan_lorenz[1], tspan_lorenz[2], length = n_times_lorenz) |> collect
-	traj_lorenz = [sol_lorenz(t)[i] for t in times_lorenz, i = 1:3]
+	sol_lorenz = ODEProblem(lorenz!, ics_lorenz, tspan_lorenz_test) |> solve
+	
+	times_lorenz_train = range(tspan_lorenz_train[1], tspan_lorenz_train[2], length = n_times_lorenz) |> collect
+	traj_lorenz_train = [sol_lorenz(t)[i] for t in times_lorenz_train, i = 1:length(ics_lorenz)]
+	
+	times_lorenz_test = range(tspan_lorenz_test[1], tspan_lorenz_test[2], length = floor(Int64, (tspan_lorenz_test[2]/tspan_lorenz_train[2])*n_times_lorenz)) |> collect
+	traj_lorenz_test = [sol_lorenz(t)[i] for t in times_lorenz_test, i = 1:length(ics_lorenz)]
+	
 	nothing
 end
 
 # ╔═╡ 22a674b3-5fa3-4cfe-b854-d3fef37e6f02
 begin
-	sdp_lorenz = SparseDynamicsProblem(times_lorenz, traj_lorenz, 1, var_names = ["x", "y", "z"])
+	sdp_lorenz = SparseDynamicsProblem(times_lorenz_train, traj_lorenz_train, 1, var_names = ["x", "y", "z"])
 	
-	polys = polynomials(sdp_lorenz.var_functions, 2)
-	add_library_function!(sdp_lorenz, polys)
+	polys_lorenz = polynomials(sdp_lorenz.var_functions, 2)
+	add_library_function!(sdp_lorenz, polys_lorenz)
 	
 	sdr_lorenz = STRidge(sdp_lorenz)
 
-	sol_lorenz_sindy = ODEProblem(sdr_lorenz.odefun, ics_lorenz, tspan_lorenz) |> solve
-	traj_lorenz_sindy = [sol_lorenz_sindy(t)[i] for t in times_lorenz, i = 1:3]
+	sol_lorenz_sindy = ODEProblem(sdr_lorenz.odefun, ics_lorenz, tspan_lorenz_test) |> solve
+	traj_lorenz_sindy = [sol_lorenz_sindy(t)[i] for t in times_lorenz_test, i = 1:length(ics_lorenz)]
 	nothing
 end
+
+# ╔═╡ 634cbbb0-a1eb-4b4c-ad19-1bc4e56b5ae8
+sdr_lorenz.names
 
 # ╔═╡ 35a4d5d1-a490-4853-a141-48bbc8a194da
 let
@@ -302,18 +327,42 @@ let
 	ax = Axis(fig[1, 1])
 	labels = [L"x", L"y", L"z"]
 	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
-	for i = 1:size(traj_lorenz, 2)
-	  lines!(ax, times_lorenz, traj_lorenz[:,i], label = labels[i])
+	for i = 1:size(traj_lorenz_test, 2)
+	  lines!(ax, times_lorenz_test, traj_lorenz_test[:,i], label = labels[i])
 	end
 	
-	for i = 1:size(traj_lorenz, 2)
-	  lines!(ax, times_lorenz, traj_lorenz_sindy[:,i], linestyle = :dash, label = labels_sindy[i])
+	for i = 1:size(traj_lorenz_sindy, 2)
+	  lines!(ax, times_lorenz_test, traj_lorenz_sindy[:,i], linestyle = :dash, label = labels_sindy[i])
 	end
 	
 	axislegend(ax)
 
 	fig
 end
+
+# ╔═╡ be9c7a59-9a2a-41d8-8f63-d4919b6cee4e
+md"""
+# Gulf Stream Data
+"""
+
+# ╔═╡ 31f79ec2-90ec-4381-b112-f682f01e66c9
+md"""
+## Loading Data and Interpolants
+"""
+
+# ╔═╡ 5d04a43f-98d8-475c-97a5-17c0db2a259c
+datapath = joinpath(pwd(), "..", "data") |> abspath
+
+# ╔═╡ 77c2ea65-cd7b-45ce-b168-7f4e5280628b
+md"""
+## Fluid
+"""
+
+# ╔═╡ eabb2085-565f-465e-8e76-47c1f114850a
+# x0max =  -500+250;
+# x0min = -1250+250;
+# y0max =  -500+250;
+# y0min = -1250+250;
 
 # ╔═╡ 788f628e-c77c-49a5-ac81-a527ede9cfbd
 md"""
@@ -335,31 +384,226 @@ main {
 """
 end
 
-# ╔═╡ 4f9982e3-e539-446d-9e37-fe2a71d3933b
-function pretty_print(coeffs::Vector{<:Real}, library_names::Vector{String})
-    @assert length(coeffs) == length(library_names)
+# ╔═╡ 840cada2-6d5f-4bad-bee7-5faba2071a08
+const EARTH_RADIUS = 6371.0 
 
-    nums = string.(round.(coeffs, sigdigits = 3))
-    output_string = ""
-    for i = 1:length(nums)
-        if nums[i] != "0.0"
-            output_string *= nums[i] * "*" * library_names[i] * " + "
-        end
+# ╔═╡ 40d8c53e-c18d-48d5-93d2-b5afb42ab962
+struct EquirectangularReference{T<:AbstractFloat}
+    lon0::T
+    lat0::T
+    R::T
+
+    function EquirectangularReference(; lon0::Real = -75.0, lat0::Real = 10.0, R::Real = EARTH_RADIUS)
+        @assert -180.0 <= lon0 <= 180.0 "The longitude must be between -180 degrees and 180 degrees."
+        @assert -90 <= lat0 <= 90 "The latitude must be between -90 degrees and 90 degrees."
+    
+        lon0, lat0, R = promote(float(lon0), float(lat0), float(R))
+    
+        return new{typeof(lon0)}(lon0, lat0, R)
+    end
+end
+
+# ╔═╡ 3bd280c2-e6c3-411e-a4e8-5969afce0dd7
+let
+	xyt0 = matread(joinpath(datapath, "sargassum-xyorigin.mat"))
+	lon_origin = xyt0["lon_origin"]
+	lat_origin = xyt0["lat_origin"]
+	global sarg_ref = EquirectangularReference(lon0=lon_origin, lat0=lat_origin)
+	
+	xyt = matread(joinpath(datapath, "sargassum-xyt.mat"))
+	x, y, t = (xyt["x"], xyt["y"], xyt["t"]) .|> vec
+	x = range(x[1], x[end], length=length(x))
+	y = range(y[1], y[end], length=length(y))
+	t = range(0, t[end] - t[1], length=length(t))
+	
+	uv = matread(joinpath(datapath, "sargassum-uv.mat"))
+	vx_data, vy_data = (uv["u"], uv["v"]) .|> x -> permutedims(x, (2, 1, 3))
+
+	global sarg_times = deepcopy(t)
+	global vx = cubic_spline_interpolation((x, y, t), vx_data)
+	global vy = cubic_spline_interpolation((x, y, t), vy_data)
+
+	global function f_fluid!(du, u, p, t)
+	    x, y = u
+	    du[1] = vx(x, y, t)
+	    du[2] = vy(x, y, t)
+	    return nothing
+	end
+
+	f = 2 * 2 * π * sin(lat_origin * π / 180)
+	δ = 0.9
+	τ = 1 / f
+	
+	global function f_slow!(du, u, p, t)
+	    x, y = u
+	    du[1] = vx(x, y, t) + f * τ * (1 - δ) * vy(x, y, t)
+	    du[2] = vy(x, y, t) - f * τ * (1 - δ) * vx(x, y, t)
+	    return nothing
+	end
+
+	function f_full!(du, u, p, t)
+	    x, y, dxdt, dydt = u
+	    du[1] = dxdt
+	    du[2] = dydt
+	    du[3] = f * (dydt - δ * vy(x, y, t)) + (vx(x, y, t) - dxdt) / τ
+	    du[4] = f * (δ * vx(x, y, t) - dxdt) + (vy(x, y, t) - dydt) / τ
+	    return nothing
+	end
+
+	nothing
+end
+
+# ╔═╡ bb5174ab-523e-4363-ba47-38d9c47f0de4
+begin
+	ics_fluid = [-700, -700] 		
+	tspan_fluid_test = (0.0, 120.0)
+	n_times_fluid = 300 	
+	tspan_fluid_train = (0.0, 90.0)
+
+	###
+
+	sol_fluid = ODEProblem(f_fluid!, ics_fluid, tspan_fluid_test) |> solve
+	
+	times_fluid_train = range(tspan_fluid_train[1], tspan_fluid_train[2], length = n_times_fluid) |> collect
+	traj_fluid_train = [sol_fluid(t)[i] for t in times_fluid_train, i = 1:length(ics_fluid)]
+	
+	times_fluid_test = range(tspan_fluid_test[1], tspan_fluid_test[2], length = floor(Int64, (tspan_fluid_test[2]/tspan_fluid_train[2])*n_times_fluid)) |> collect
+	traj_fluid_test = [sol_fluid(t)[i] for t in times_fluid_test, i = 1:length(ics_fluid)]
+	
+	nothing
+end
+
+# ╔═╡ 2d5dbfc0-a36a-4f15-8cf7-818295e69574
+begin
+	sdp_fluid = SparseDynamicsProblem(times_fluid_train, traj_fluid_train, 1, var_names = ["x", "y"])
+
+	x_fluid, y_fluid = sdp_fluid.var_functions
+	vx_fluid = LibFun((t, u) -> vx(x_fluid.f(t, u), y_fluid.f(t, u), t), "vx")
+	vy_fluid = LibFun((t, u) -> vy(x_fluid.f(t, u), y_fluid.f(t, u), t), "vy") 
+	lib_funs_fluid = [x_fluid, y_fluid, vx_fluid, vy_fluid]
+	
+	# polys_fluid = polynomials(lib_funs_fluid, 2)
+	# add_library_function!(sdp_fluid, polys_fluid)
+	
+	# sdr_fluid = STRidge(sdp_fluid)
+
+	# sol_fluid_sindy = ODEProblem(sdr_fluid.odefun, ics_fluid, tspan_fluid_test) |> solve
+	# traj_fluid_sindy = [sol_fluid_sindy(t)[i] for t in times_fluid_test, i = 1:length(ics_fluid)]
+	# nothing
+end
+
+# ╔═╡ 6c5cfb37-40f9-41ff-93e3-da686e52f32b
+vx_fluid.f(1.0, [rand(10), rand(10)])
+
+# ╔═╡ 40bf79f6-585e-4d2a-a34b-58ef397a7053
+function sph2xy(lon::Real, lat::Real, eqr::EquirectangularReference)
+    @assert -180.0 <= lon <= 180.0 "The longitude must be between -180 degrees and 180 degrees."
+    @assert -90 <= lat <= 90 "The latitude must be between -90 degrees and 90 degrees."
+
+    lon0, lat0, R = (eqr.lon0, eqr.lat0, eqr.R)
+    deg2rad = π/180
+
+    x = R*(lon - lon0)*deg2rad*cos(lat0*deg2rad)
+    y = R*(lat - lat0)*deg2rad
+
+    return [x, y]
+end
+
+# ╔═╡ 901d8290-c137-4a39-9390-cc422cf70f76
+function sph2xy(lon_range::AbstractRange, lat_range::AbstractRange, eqr::EquirectangularReference)
+    # uses the fact that the translation between eqr and spherical is linear
+    lonmin, latmin = sph2xy(first(lon_range), first(lat_range), eqr)
+    lonmax, latmax = sph2xy(last(lon_range), last(lat_range), eqr)
+
+    return  (
+            range(start = lonmin, length = length(lon_range), stop = lonmax), 
+            range(start = latmin, length = length(lat_range), stop = latmax)
+            )
+end
+
+# ╔═╡ 0fbd8b04-27cb-42be-9765-a6c746ba987a
+function sph2xy(lon_lat::Matrix{T}, eqr::EquirectangularReference) where {T<:Real}
+    @assert size(lon_lat, 2) == 2 "lon_lat should be an `N x 2` matrix"
+    xy = zeros(T, size(lon_lat))
+    
+    for i = 1:size(lon_lat, 1)
+        xy[i,:] .= sph2xy(lon_lat[i,1], lon_lat[i,2], eqr)
     end
 
-    output_string = output_string[1:end-3]
-
-    return output_string
+    return xy
 end
 
-# ╔═╡ 038827fa-e647-4ed0-a5e6-6067efe4989a
-function pretty_print(coeffs::Vector{<:Vector{<:Real}}, library_names::Vector{String})
-    return [pretty_print(coeffs[coeff], library_names) for coeff in coeffs]
+# ╔═╡ 74f49db0-ca05-4d62-a826-f655418c0a03
+function sph2xy(lon_lat::Vector{T}, eqr::EquirectangularReference) where {T<:Real}
+    @assert iseven(length(lon_lat)) "lon_lat should be of the form `[lon1, lat1, lon2, lat2 ... lon3, lat3]`."
+
+    xy = zeros(T, length(lon_lat))
+    
+    for i = 1:2:length(lon_lat)
+        xy[i:i+1] .= sph2xy(lon_lat[i], lon_lat[i + 1], eqr)
+    end
+
+    return xy
 end
 
-# ╔═╡ 43c1ca08-2075-4018-82fb-03bbd56b91c2
-function pretty_print(coeffs::Matrix{<:Real}, library_names::Vector{String})
-    return [pretty_print(coeffs[:,i], library_names) for i = 1:size(coeffs, 2)]
+# ╔═╡ eb1c7b35-89e4-4b2b-a069-15d33e8ca22b
+function xy2sph(x::Real, y::Real, eqr::EquirectangularReference)
+    lon0, lat0, R = (eqr.lon0, eqr.lat0, eqr.R)
+    deg2rad = π/180
+    rad2deg = 1/deg2rad
+
+    lon = lon0 + rad2deg*x/(R*cos(lat0*deg2rad))
+    lat = lat0 + rad2deg*y/R 
+
+    return [lon, lat]
+end
+
+# ╔═╡ cca894c8-f72d-4a2c-9346-cf8830907096
+function xy2sph(xy::Vector{<:Vector{T}}, eqr::EquirectangularReference) where {T<:Real}
+    lonlat = zeros(T, length(xy), 2) 
+    
+    for i = 1:length(xy)
+        lonlat[i,:] = xy2sph(xy[i][1], xy[i][2], eqr)
+    end
+
+    return lonlat
+end
+
+# ╔═╡ c053eceb-9ea5-4193-9fbd-dfcdf67f30e2
+function xy2sph(xy::Matrix{T}, eqr::EquirectangularReference) where {T<:Real}
+    @assert size(xy, 2) == 2 "xy should be an `N x 2` matrix"
+    lonlat = zeros(T, size(xy))
+    
+    for i = 1:size(xy, 1)
+        lonlat[i,:] = xy2sph(xy[i,1], xy[i,2], eqr)
+    end
+
+    return lonlat
+end
+
+# ╔═╡ 7be78e8d-7901-499a-9591-0066fb329f07
+function xy2sph(x_range::AbstractRange, y_range::AbstractRange, eqr::EquirectangularReference)
+    # uses the fact that the translation between eqr and spherical is linear
+    xmin, ymin = xy2sph(first(x_range), first(y_range), eqr)
+    xmax, ymax = xy2sph(last(x_range), last(y_range), eqr)
+
+    return  (
+            range(start = xmin, length = length(x_range), stop = xmax), 
+            range(start = ymin, length = length(y_range), stop = ymax)
+            )
+end
+
+# ╔═╡ bf39df89-529e-4618-8f68-a5d546e0600e
+function xy2sph(xy::Vector{T}, eqr::EquirectangularReference) where {T<:Real}
+    @assert iseven(length(xy)) "xy should be of the form `[x1, y1, x2, y2 ... x3, y3]`."
+
+    lon_lat = zeros(T, length(xy))
+    
+    for i = 1:2:length(xy)
+        lon_lat[i:i+1] .= xy2sph(xy[i], xy[i + 1], eqr)
+    end
+
+    return lon_lat
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -369,10 +613,13 @@ BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SargassumColors = "d2143393-64d1-4702-ac44-3f87fb4b2e5f"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
@@ -380,8 +627,11 @@ BSplineKit = "~0.17.2"
 CairoMakie = "~0.11.11"
 Combinatorics = "~1.0.2"
 DifferentialEquations = "~7.13.0"
+Interpolations = "~0.15.1"
 Latexify = "~0.16.3"
+MAT = "~0.10.6"
 MultivariateStats = "~0.10.2"
+SargassumColors = "~0.2.2"
 StatsBase = "~0.34.3"
 """
 
@@ -391,7 +641,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "06ac27040afcbd0e010a5fde1ae250c1b07f2f41"
+project_hash = "807dee2aa451372c8dab00b9cbfa0bec11eb5ac6"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -575,6 +825,11 @@ version = "5.7.1"
     [deps.BoundaryValueDiffEq.weakdeps]
     ODEInterface = "54ca160b-1b9f-5127-a996-1867f4bc2a2c"
 
+[[deps.BufferedStreams]]
+git-tree-sha1 = "4ae47f9a4b1dc19897d3743ff13685925c5202ec"
+uuid = "e1450e63-4bb3-523b-b2a4-4ffa8c0fd77d"
+version = "1.2.1"
+
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "9e2a6b69137e6969bab0152632dcb3bc108c8bdd"
@@ -640,6 +895,12 @@ deps = ["Static", "StaticArrayInterface"]
 git-tree-sha1 = "70232f82ffaab9dc52585e0dd043b5e0c6b714f1"
 uuid = "fb6a15b2-703c-40df-9091-08a04967cfa9"
 version = "0.1.12"
+
+[[deps.CodecZlib]]
+deps = ["TranscodingStreams", "Zlib_jll"]
+git-tree-sha1 = "59939d8a997469ee05c4b4944560a820f9ba0d73"
+uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
+version = "0.7.4"
 
 [[deps.ColorBrewer]]
 deps = ["Colors", "JSON", "Test"]
@@ -1117,11 +1378,38 @@ git-tree-sha1 = "af49a0851f8113fcfae2ef5027c6d49d0acec39b"
 uuid = "c145ed77-6b09-5dd9-b285-bf645a82121e"
 version = "0.5.4"
 
+[[deps.GeoFormatTypes]]
+git-tree-sha1 = "59107c179a586f0fe667024c5eb7033e81333271"
+uuid = "68eda718-8dee-11e9-39e7-89f7f65f511f"
+version = "0.4.2"
+
 [[deps.GeoInterface]]
 deps = ["Extents"]
 git-tree-sha1 = "801aef8228f7f04972e596b09d4dba481807c913"
 uuid = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
 version = "1.3.4"
+
+[[deps.GeoInterfaceMakie]]
+deps = ["GeoInterface", "GeometryBasics", "MakieCore"]
+git-tree-sha1 = "c15f793d501789ffa1cd171103406573d00f71cc"
+uuid = "0edc0954-3250-4c18-859d-ec71c1660c08"
+version = "0.1.5"
+
+[[deps.GeoInterfaceRecipes]]
+deps = ["GeoInterface", "RecipesBase"]
+git-tree-sha1 = "fb1156076f24f1dfee45b3feadb31d05730a49ac"
+uuid = "0329782f-3d07-4b52-b9f6-d3137cf03c7a"
+version = "1.0.2"
+
+[[deps.GeoJSON]]
+deps = ["Extents", "GeoFormatTypes", "GeoInterface", "GeoInterfaceMakie", "GeoInterfaceRecipes", "JSON3", "StructTypes", "Tables"]
+git-tree-sha1 = "5846df44b97b4af377fd057b3a2a393228081a3c"
+uuid = "61d90e0f-e114-555e-ac52-39dfb47a3ef9"
+version = "0.8.0"
+weakdeps = ["Makie"]
+
+    [deps.GeoJSON.extensions]
+    GeoJSONMakieExt = "Makie"
 
 [[deps.GeometryBasics]]
 deps = ["EarCut_jll", "Extents", "GeoInterface", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
@@ -1170,6 +1458,24 @@ git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
 uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
 version = "1.0.2"
 
+[[deps.HDF5]]
+deps = ["Compat", "HDF5_jll", "Libdl", "MPIPreferences", "Mmap", "Preferences", "Printf", "Random", "Requires", "UUIDs"]
+git-tree-sha1 = "e856eef26cf5bf2b0f95f8f4fc37553c72c8641c"
+uuid = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+version = "0.17.2"
+
+    [deps.HDF5.extensions]
+    MPIExt = "MPI"
+
+    [deps.HDF5.weakdeps]
+    MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+
+[[deps.HDF5_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "OpenSSL_jll", "TOML", "Zlib_jll", "libaec_jll"]
+git-tree-sha1 = "82a471768b513dc39e471540fdadc84ff80ff997"
+uuid = "0234f1f7-429e-5d53-9886-15a909be8d59"
+version = "1.14.3+3"
+
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
 git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
@@ -1181,6 +1487,12 @@ deps = ["BitTwiddlingConvenienceFunctions", "IfElse", "Libdl", "Static"]
 git-tree-sha1 = "eb8fed28f4994600e29beef49744639d985a04b2"
 uuid = "3e5b6fbb-0976-4d2c-9146-d79de83f2fb0"
 version = "0.1.16"
+
+[[deps.Hwloc_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "ca0f6bf568b4bfc807e7537f081c81e35ceca114"
+uuid = "e33a78d0-f292-5ffc-b300-72abe9b543c8"
+version = "2.10.0+0"
 
 [[deps.HypergeometricFunctions]]
 deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
@@ -1326,6 +1638,18 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
+
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
+git-tree-sha1 = "eb3edce0ed4fa32f75a0a11217433c31d56bd48b"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.14.0"
+
+    [deps.JSON3.extensions]
+    JSON3ArrowExt = ["ArrowTypes"]
+
+    [deps.JSON3.weakdeps]
+    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.JpegTurbo]]
 deps = ["CEnum", "FileIO", "ImageCore", "JpegTurbo_jll", "TOML"]
@@ -1575,11 +1899,35 @@ weakdeps = ["ChainRulesCore", "ForwardDiff", "SpecialFunctions"]
     ForwardDiffExt = ["ChainRulesCore", "ForwardDiff"]
     SpecialFunctionsExt = "SpecialFunctions"
 
+[[deps.MAT]]
+deps = ["BufferedStreams", "CodecZlib", "HDF5", "SparseArrays"]
+git-tree-sha1 = "ed1cf0a322d78cee07718bed5fd945e2218c35a1"
+uuid = "23992714-dd62-5051-b70f-ba57cb901cac"
+version = "0.10.6"
+
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
 git-tree-sha1 = "80b2833b56d466b3858d565adcd16a4a05f2089b"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
 version = "2024.1.0+0"
+
+[[deps.MPICH_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
+git-tree-sha1 = "4099bb6809ac109bfc17d521dad33763bcf026b7"
+uuid = "7cb0a576-ebde-5e09-9194-50597f1243b4"
+version = "4.2.1+1"
+
+[[deps.MPIPreferences]]
+deps = ["Libdl", "Preferences"]
+git-tree-sha1 = "c105fe467859e7f6e9a852cb15cb4301126fac07"
+uuid = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
+version = "0.1.11"
+
+[[deps.MPItrampoline_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
+git-tree-sha1 = "ce0ca3dd147c43de175c5aff161315a424f4b8ac"
+uuid = "f1f71cc9-e9ae-5b93-9b94-4fe0e1ad3748"
+version = "5.3.3+1"
 
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
@@ -1635,6 +1983,12 @@ version = "0.1.2"
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.2+1"
+
+[[deps.MicrosoftMPI_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "f12a29c4400ba812841c6ace3f4efbb6dbb3ba01"
+uuid = "9237b28f-5490-5468-be7b-bb81f5f5e6cf"
+version = "10.1.4+2"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -1767,6 +2121,12 @@ version = "3.2.4+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.1+2"
+
+[[deps.OpenMPI_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
+git-tree-sha1 = "e25c1778a98e34219a00455d6e4384e017ea9762"
+uuid = "fe0851c0-eecd-5654-98d4-656369965a5c"
+version = "4.1.6+0"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2092,6 +2452,12 @@ git-tree-sha1 = "3aac6d68c5e57449f5b9b865c9ba50ac2970c4cf"
 uuid = "476501e8-09a2-5ece-8869-fb82de89a1fa"
 version = "0.6.42"
 
+[[deps.SargassumColors]]
+deps = ["ColorSchemes", "Colors", "GeoJSON", "Makie"]
+git-tree-sha1 = "bcf12c031ea0a31688767c81be08ad698c4a491b"
+uuid = "d2143393-64d1-4702-ac44-3f87fb4b2e5f"
+version = "0.2.2"
+
 [[deps.SciMLBase]]
 deps = ["ADTypes", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables"]
 git-tree-sha1 = "397367599b9526a49cc06a4db70835807498b561"
@@ -2352,6 +2718,12 @@ weakdeps = ["Adapt", "GPUArraysCore", "SparseArrays", "StaticArrays"]
     StructArraysSparseArraysExt = "SparseArrays"
     StructArraysStaticArraysExt = "StaticArrays"
 
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "ca4bccb03acf9faaf4137a9abc1881ed1841aa70"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.10.0"
+
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
@@ -2567,6 +2939,12 @@ git-tree-sha1 = "51b5eeb3f98367157a7a12a1fb0aa5328946c03c"
 uuid = "9a68df92-36a6-505f-a73e-abb412b6bfb4"
 version = "0.2.3+0"
 
+[[deps.libaec_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "46bf7be2917b59b761247be3f317ddf75e50e997"
+uuid = "477f73a3-ac25-53e9-8cc3-50b2fa2566f0"
+version = "1.1.2+0"
+
 [[deps.libaom_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "3a2ea60308f0996d26f1e5354e10c24e9ef905d4"
@@ -2640,13 +3018,13 @@ version = "3.5.0+0"
 # ╔═╡ Cell order:
 # ╟─5725e2ce-40ec-42ee-b521-2c54922bad7f
 # ╠═8976a397-bbaa-4439-b19a-09dc87258f45
-# ╠═53c3e249-7cf4-44cb-84f9-9fea224bc435
 # ╟─5fad43f1-80e3-43ae-99bf-daf288b27e4f
 # ╠═ec34c8de-62fc-4f0d-b05d-43423d09d823
 # ╠═877ef8d8-2499-4692-a26a-b345efbd597a
 # ╠═e6db750f-73bc-4f4a-b6d2-ff27a575d694
 # ╠═831a346a-3200-497f-87c3-f6bca5d2e146
 # ╠═aa630bbe-1447-4a89-b32f-86911d35661c
+# ╠═0c57a428-8d1d-4b5f-9bb0-8a6fe992c62b
 # ╠═4621b7dd-530e-4488-8952-8581195ec976
 # ╠═0eca8a7c-ec2a-4b97-a8cf-65282bc5b7e0
 # ╠═ee9f84a0-a949-45b4-81d4-e8ac73236420
@@ -2654,15 +3032,32 @@ version = "3.5.0+0"
 # ╠═7532911c-da81-4ab9-92da-affa677d6e27
 # ╠═1b3ed7d7-bb7c-4faf-ab89-5c65f816578b
 # ╟─7388ca53-d7aa-4e95-a830-c99381550413
-# ╟─442f6240-b1b7-4662-a9a9-989795f13c63
 # ╠═0d4d2c16-0669-451b-99ee-8ea93c172f87
 # ╠═5b5eb1dd-ab3e-4f6e-8189-c123c6505252
 # ╠═22a674b3-5fa3-4cfe-b854-d3fef37e6f02
+# ╠═634cbbb0-a1eb-4b4c-ad19-1bc4e56b5ae8
 # ╠═35a4d5d1-a490-4853-a141-48bbc8a194da
+# ╟─be9c7a59-9a2a-41d8-8f63-d4919b6cee4e
+# ╟─31f79ec2-90ec-4381-b112-f682f01e66c9
+# ╠═5d04a43f-98d8-475c-97a5-17c0db2a259c
+# ╠═3bd280c2-e6c3-411e-a4e8-5969afce0dd7
+# ╟─77c2ea65-cd7b-45ce-b168-7f4e5280628b
+# ╠═eabb2085-565f-465e-8e76-47c1f114850a
+# ╠═bb5174ab-523e-4363-ba47-38d9c47f0de4
+# ╠═2d5dbfc0-a36a-4f15-8cf7-818295e69574
+# ╠═6c5cfb37-40f9-41ff-93e3-da686e52f32b
 # ╟─788f628e-c77c-49a5-ac81-a527ede9cfbd
 # ╟─6ca5c925-621e-4d6f-a379-e20d4f7bc225
-# ╠═4f9982e3-e539-446d-9e37-fe2a71d3933b
-# ╠═038827fa-e647-4ed0-a5e6-6067efe4989a
-# ╠═43c1ca08-2075-4018-82fb-03bbd56b91c2
+# ╠═840cada2-6d5f-4bad-bee7-5faba2071a08
+# ╠═40d8c53e-c18d-48d5-93d2-b5afb42ab962
+# ╠═40bf79f6-585e-4d2a-a34b-58ef397a7053
+# ╠═901d8290-c137-4a39-9390-cc422cf70f76
+# ╠═0fbd8b04-27cb-42be-9765-a6c746ba987a
+# ╠═74f49db0-ca05-4d62-a826-f655418c0a03
+# ╠═eb1c7b35-89e4-4b2b-a069-15d33e8ca22b
+# ╠═cca894c8-f72d-4a2c-9346-cf8830907096
+# ╠═c053eceb-9ea5-4193-9fbd-dfcdf67f30e2
+# ╠═7be78e8d-7901-499a-9591-0066fb329f07
+# ╠═bf39df89-529e-4618-8f68-a5d546e0600e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
