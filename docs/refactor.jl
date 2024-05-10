@@ -145,7 +145,7 @@ mutable struct SparseDynamicsProblem
 		traj = convert(Matrix{Float64}, traj)
 		order = convert(Int64, order)
 
-		ds = calculate_derivatives(t, traj, order)
+		ds = calculate_derivatives(t, traj, order) # dict
 		var_data = hcat([ds[key] for key = 0:order-1]...)
 		var_data = [var_data[:,i] for i = 1:size(var_data, 2)]
 		target = ds[order]
@@ -220,7 +220,6 @@ struct SparseDynamicsResult{VM, F}
 	odefun::F
 
 	function SparseDynamicsResult(sdp::SparseDynamicsProblem, coeffs::VM) where {VM}
-		n_vars = length(sdp.var_names)
 		n_libs = size(coeffs, 1)
 		n_targets = size(coeffs, 2)
 
@@ -245,6 +244,7 @@ struct SparseDynamicsResult{VM, F}
 			push!(names, name)
 		end
 
+		n_vars = size(sdp.traj, 2)
 		order = sdp.order
 
 		if order == 1
@@ -265,8 +265,8 @@ struct SparseDynamicsResult{VM, F}
 		        du[i] = u[i + n_vars]
 		      end
 		
-		      for i in idx_f, j = 1:n_vars
-		        du[i] = f[j](t, u[idx_v])
+		      for i = 1:length(idx_f)
+		        du[idx_f[i]] = f[i](t, u)
 		      end
 		    end
 		
@@ -372,6 +372,30 @@ md"""
 # ╔═╡ 0e51b25d-55d0-4c0d-b2fd-3e951329266f
 ics_fluid = [-700, -700] .+ (3*rand(), 3*rand())
 
+# ╔═╡ 31b759e3-60fc-4c9a-aa7c-053906125d0b
+md"""
+## Slow
+"""
+
+# ╔═╡ 7ffdd06a-1462-45a7-8b42-836db4a93aad
+ics_slow = [-700, -700] .+ (3*rand(), 3*rand())
+
+# ╔═╡ 8d8e2bdc-c35e-4332-884a-34bc49707ffa
+md"""
+## Full
+"""
+
+# ╔═╡ 49483d2c-a284-4643-8000-ef5d664b4e18
+begin
+	ics_full = [-700, -700] .+ (3*rand(), 3*rand())
+	ics_full_v = [0, 0] .+ (rand(), rand())
+end
+
+# ╔═╡ 58b47ca8-fa19-44f0-922a-58ac71816eb4
+md"""
+# Extra
+"""
+
 # ╔═╡ 788f628e-c77c-49a5-ac81-a527ede9cfbd
 md"""
 # Utilities
@@ -449,7 +473,7 @@ let
 	    return nothing
 	end
 
-	function f_full!(du, u, p, t)
+	global function f_full!(du, u, p, t)
 	    x, y, dxdt, dydt = u
 	    du[1] = dxdt
 	    du[2] = dydt
@@ -482,10 +506,10 @@ end
 
 # ╔═╡ cd6228f3-8b1c-40e1-bda4-b62de5d9b483
 let
-	points = []
+	global cutoffs_fluid = []
 	global sdrs_fluid = []
 	n_terms_poss = []
-	for lambda_sparse in 10 .^ range(-3, 1, length = 1000)
+	for lambda_sparse in 10 .^ range(-3, 1, length = 100)
 	  sdp_fluid = SparseDynamicsProblem(times_fluid_train, traj_fluid_train, 1, var_names = ["x", "y"])
 	
 	  x_fluid, y_fluid = sdp_fluid.var_functions
@@ -503,24 +527,24 @@ let
 	  n_terms = count(iszero, sdr_fluid.coeffs)
 	
 	  if !(n_terms in n_terms_poss)
-	    push!(points, [lambda_sparse, n_terms, rmse])
+	    push!(cutoffs_fluid, [lambda_sparse, n_terms, rmse])
 	    push!(sdrs_fluid, sdr_fluid)
 	    push!(n_terms_poss, n_terms)
 	  else
-	    points[end] = [lambda_sparse, n_terms, rmse]
+	    cutoffs_fluid[end] = [lambda_sparse, n_terms, rmse]
 	    sdrs_fluid[end] = sdr_fluid
 	  end
 	end
-	points = stack(points, dims = 1)
+	cutoffs_fluid = stack(cutoffs_fluid, dims = 1)
 	
 	fig = Figure()
 	ax = Axis(fig[1, 1], xlabel = L"\log10(\lambda)", ylabel = "RMSE")
-	scatter!(ax, log10.(points[:,1]), points[:,3], color = points[:,2])
+	scatter!(ax, log10.(cutoffs_fluid[:,1]), cutoffs_fluid[:,3], color = :black, markersize = 20)
 	fig
 end
 
-# ╔═╡ 9ee63a0b-a267-4236-94ab-9d80e4d46463
-sdrs_fluid
+# ╔═╡ cdc5dab7-9cee-4c67-9c91-5c655e5f74c7
+cutoffs_fluid
 
 # ╔═╡ 2d5dbfc0-a36a-4f15-8cf7-818295e69574
 begin
@@ -534,7 +558,7 @@ begin
 	polys_fluid = polynomials(lib_funs_fluid, 2)
 	add_library_function!(sdp_fluid, polys_fluid)
 
-	options_fluid = STRidgeOptions(lambda_sparse = 0.05, lambda_ridge = 0.2, max_iters = 10)
+	options_fluid = STRidgeOptions(lambda_sparse = 0.03, lambda_ridge = 0.1, max_iters = 10)
 	sdr_fluid = STRidge(sdp_fluid, options = options_fluid)
 
 	sol_fluid_sindy = ODEProblem(sdr_fluid.odefun, ics_fluid, tspan_fluid_test) |> x -> solve(x, Tsit5())
@@ -545,13 +569,10 @@ end
 # ╔═╡ a83f6ace-ab88-461e-b95c-0d7f639c6e23
 sdr_fluid.names
 
-# ╔═╡ d5318f88-f4e2-476a-bee9-5b336fb3ae10
-sdr_fluid.coeffs
-
 # ╔═╡ 39aeb386-87e1-4879-8a07-3f63df733b3f
 let
-	fig = Figure(size = (1000, 250))
-	ax = Axis(fig[1, 1], aspect = AxisAspect(2))
+	fig = Figure(size = (1000, 400))
+	ax = Axis(fig[1, 1], aspect = AxisAspect(2), xlabel = "time [days]", ylabel = "Position [km]")
 	labels = [L"x", L"y"]
 	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
 	colors = [:blue, :red]
@@ -562,20 +583,309 @@ let
 	for i = 1:size(traj_fluid_sindy, 2)
 	  lines!(ax, times_fluid_test, traj_fluid_sindy[:,i], linestyle = :dash, label = labels_sindy[i], color = colors[i])
 	end
-	
-	axislegend(ax, position = :rb)
 
-	ax = Axis(fig[1, 2], aspect = AxisAspect(2))
+	Legend(fig[2,1], ax, orientation = :horizontal)
+
+	###
+
+	ax = Axis(fig[1, 2], aspect = AxisAspect(2), xlabel = L"x \,\, \text{[km]}", ylabel = L"y \,\, \text{[km]}")
 	labels = [L"xy(t)"]
 	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
 	lines!(ax, traj_fluid_test[:,1], traj_fluid_test[:,2], label = "Fluid", color = :black)
 
 	lines!(ax, traj_fluid_sindy[:,1], traj_fluid_sindy[:,2], linestyle = :dash, label = "Fluid [SINDy]", color = :red)
 	
-	axislegend(ax, position = :rb)
+	Legend(fig[2,2], ax, orientation = :horizontal)
+
+
+	Label(fig[:, 3], "FLUID LEARNED \n dxdt = $(sdr_fluid.names[1]) \n dydt = $(sdr_fluid.names[2])", fontsize = 20)
 
 	fig
 end
+
+# ╔═╡ 1343467c-5130-415a-92e7-97d433afae7d
+begin
+	tspan_slow_test = (0.0, 120.0)
+	n_times_slow = 1000 	
+	tspan_slow_train = (0.0, 90.0)
+
+	###
+
+	sol_slow = ODEProblem(f_slow!, ics_slow, tspan_slow_test) |> x -> solve(x, Tsit5())
+	
+	times_slow_train = range(tspan_slow_train[1], tspan_slow_train[2], length = n_times_slow) |> collect
+	traj_slow_train = [sol_slow(t)[i] for t in times_slow_train, i = 1:length(ics_slow)]
+	
+	times_slow_test = range(tspan_slow_test[1], tspan_slow_test[2], length = floor(Int64, (tspan_slow_test[2]/tspan_slow_train[2])*n_times_slow)) |> collect
+	traj_slow_test = [sol_slow(t)[i] for t in times_slow_test, i = 1:length(ics_slow)]
+	
+	nothing
+end
+
+# ╔═╡ d6973577-e873-44cd-8872-d829851022a8
+let
+	global cutoffs_slow = []
+	global sdrs_slow = []
+	n_terms_poss = []
+	for lambda_sparse in 10 .^ range(-3, 1, length = 100)
+	  sdp_slow = SparseDynamicsProblem(times_slow_train, traj_slow_train, 1, var_names = ["x", "y"])
+	
+	  x_slow, y_slow = sdp_slow.var_functions
+	  vx_slow = LibFun((t, u) -> vx(x_slow(t, u), y_slow(t, u), t), "vx")
+	  vy_slow = LibFun((t, u) -> vy(x_slow(t, u), y_slow(t, u), t), "vy") 
+	  lib_funs_slow = [x_slow, y_slow, vx_slow, vy_slow]
+		
+	  polys_slow = polynomials(lib_funs_slow, 2)
+	  add_library_function!(sdp_slow, polys_slow)
+	
+      options_slow = STRidgeOptions(lambda_sparse = lambda_sparse, lambda_ridge = 0.1, max_iters = 10)
+	  sdr_slow = STRidge(sdp_slow, options = options_slow)
+		
+	  rmse = sdr_slow.rmse |> x -> sum(x)/length(x)
+	  n_terms = count(iszero, sdr_slow.coeffs)
+	
+	  if !(n_terms in n_terms_poss)
+	    push!(cutoffs_slow, [lambda_sparse, n_terms, rmse])
+	    push!(sdrs_slow, sdr_slow)
+	    push!(n_terms_poss, n_terms)
+	  else
+	    cutoffs_slow[end] = [lambda_sparse, n_terms, rmse]
+	    sdrs_slow[end] = sdr_slow
+	  end
+	end
+	cutoffs_slow = stack(cutoffs_slow, dims = 1)
+	
+	fig = Figure()
+	ax = Axis(fig[1, 1], xlabel = L"\log10(\lambda)", ylabel = "RMSE")
+	scatter!(ax, log10.(cutoffs_slow[:,1]), cutoffs_slow[:,3], color = :black, markersize = 20)
+	fig
+end
+
+# ╔═╡ 49e46fcf-8c00-45bd-9b12-8751b56b6cc6
+sdrs_slow
+
+# ╔═╡ 01962205-cb4f-4abd-a0cb-f1e0122efd1f
+cutoffs_slow
+
+# ╔═╡ afe1e2e9-f5ae-4de4-81d0-fa304efa27c5
+begin
+	sdp_slow = SparseDynamicsProblem(times_slow_train, traj_slow_train, 1, var_names = ["x", "y"])
+
+	x_slow, y_slow = sdp_slow.var_functions
+	vx_slow = LibFun((t, u) -> vx(x_slow(t, u), y_slow(t, u), t), "vx")
+	vy_slow = LibFun((t, u) -> vy(x_slow(t, u), y_slow(t, u), t), "vy") 
+	lib_funs_slow = [x_slow, y_slow, vx_slow, vy_slow]
+	
+	polys_slow = polynomials(lib_funs_slow, 2)
+	add_library_function!(sdp_slow, polys_slow)
+
+	options_slow = STRidgeOptions(lambda_sparse = 0.08, lambda_ridge = 0.1, max_iters = 10)
+	sdr_slow = STRidge(sdp_slow, options = options_slow)
+
+	sol_slow_sindy = ODEProblem(sdr_slow.odefun, ics_slow, tspan_slow_test) |> x -> solve(x, Tsit5())
+	traj_slow_sindy = [sol_slow_sindy(t)[i] for t in times_slow_test, i = 1:length(ics_slow)]
+	nothing
+end
+
+# ╔═╡ d34e7417-64be-4016-8da3-f6bd23c0acc8
+sdr_slow.names
+
+# ╔═╡ a1b9b3d2-8215-43fa-9f38-5093aca361a0
+let
+	fig = Figure(size = (1000, 400))
+	ax = Axis(fig[1, 1], aspect = AxisAspect(2), xlabel = "time [days]", ylabel = "Position [km]")
+	labels = [L"x", L"y"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	colors = [:blue, :red]
+	for i = 1:size(traj_slow_test, 2)
+	  lines!(ax, times_slow_test, traj_slow_test[:,i], label = labels[i], color = colors[i])
+	end
+	
+	for i = 1:size(traj_slow_sindy, 2)
+	  lines!(ax, times_slow_test, traj_slow_sindy[:,i], linestyle = :dash, label = labels_sindy[i], color = colors[i])
+	end
+
+	Legend(fig[2,1], ax, orientation = :horizontal)
+
+	###
+
+	ax = Axis(fig[1, 2], aspect = AxisAspect(2), xlabel = L"x \,\, \text{[km]}", ylabel = L"y \,\, \text{[km]}")
+	labels = [L"xy(t)"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	lines!(ax, traj_slow_test[:,1], traj_slow_test[:,2], label = "Fluid", color = :black)
+
+	lines!(ax, traj_slow_sindy[:,1], traj_slow_sindy[:,2], linestyle = :dash, label = "Fluid [SINDy]", color = :red)
+	
+	Legend(fig[2,2], ax, orientation = :horizontal)
+
+
+	Label(fig[:, 3], "SLOW LEARNED \n dxdt = $(sdr_slow.names[1]) \n dydt = $(sdr_slow.names[2])", fontsize = 20)
+
+	fig
+end
+
+# ╔═╡ 200dfd1a-0af8-4215-afae-4cf70d67813d
+begin
+	tspan_full_test = (0.0, 120.0)
+	n_times_full = 1000 	
+	tspan_full_train = (0.0, 90.0)
+
+	###
+
+	sol_full = ODEProblem(f_full!, [ics_full ;; ics_full_v], tspan_full_test) |> x -> solve(x, Tsit5())
+	
+	times_full_train = range(tspan_full_train[1], tspan_full_train[2], length = n_times_full) |> collect
+	traj_full_train = [sol_full(t)[i] for t in times_full_train, i = 1:length(ics_full)]
+	
+	times_full_test = range(tspan_full_test[1], tspan_full_test[2], length = floor(Int64, (tspan_full_test[2]/tspan_full_train[2])*n_times_full)) |> collect
+	traj_full_test = [sol_full(t)[i] for t in times_full_test, i = 1:length(ics_full)]
+	
+	nothing
+end
+
+# ╔═╡ b1c5a547-a08f-41eb-b60a-e181435279fe
+let
+	global cutoffs_full = []
+	global sdrs_full = []
+	n_terms_poss = []
+	for lambda_sparse in 10 .^ range(-3, 1, length = 100)
+	  sdp_full = SparseDynamicsProblem(times_full_train, traj_full_train, 2, var_names = ["x", "y"])
+	
+	  x_full, y_full = sdp_full.var_functions
+	  vx_full = LibFun((t, u) -> vx(x_full(t, u), y_full(t, u), t), "vx")
+	  vy_full = LibFun((t, u) -> vy(x_full(t, u), y_full(t, u), t), "vy") 
+	  lib_funs_full = [x_full, y_full, vx_full, vy_full]
+		
+	  polys_full = polynomials(lib_funs_full, 2)
+	  add_library_function!(sdp_full, polys_full)
+	
+      options_full = STRidgeOptions(lambda_sparse = lambda_sparse, lambda_ridge = 0.1, max_iters = 10)
+	  sdr_full = STRidge(sdp_full, options = options_full)
+		
+	  rmse = sdr_full.rmse |> x -> sum(x)/length(x)
+	  n_terms = count(iszero, sdr_full.coeffs)
+	
+	  if !(n_terms in n_terms_poss)
+	    push!(cutoffs_full, [lambda_sparse, n_terms, rmse])
+	    push!(sdrs_full, sdr_full)
+	    push!(n_terms_poss, n_terms)
+	  else
+	    cutoffs_full[end] = [lambda_sparse, n_terms, rmse]
+	    sdrs_full[end] = sdr_full
+	  end
+	end
+	cutoffs_full = stack(cutoffs_full, dims = 1)
+	
+	fig = Figure()
+	ax = Axis(fig[1, 1], xlabel = L"\log10(\lambda)", ylabel = "RMSE")
+	scatter!(ax, log10.(cutoffs_full[:,1]), cutoffs_full[:,3], color = :black, markersize = 20)
+	fig
+end
+
+# ╔═╡ afa619a2-1383-4ceb-a8a7-7beab5ecaf17
+cutoffs_full
+
+# ╔═╡ d4bf9af8-abef-40cd-9319-1862c69b886f
+begin
+	sdp_full = SparseDynamicsProblem(times_full_train, traj_full_train, 2, var_names = ["x", "y"])
+
+	x_full, y_full, dx_full, dy_full = sdp_full.var_functions
+	vx_full = LibFun((t, u) -> vx(x_full(t, u), y_full(t, u), t), "vx")
+	vy_full = LibFun((t, u) -> vy(x_full(t, u), y_full(t, u), t), "vy") 
+	lib_funs_full = [x_full, y_full, dx_full, dy_full, vx_full, vy_full]
+	
+	polys_full = polynomials(lib_funs_full, 1)
+	add_library_function!(sdp_full, polys_full)
+
+	options_full = STRidgeOptions(lambda_sparse = 1, lambda_ridge = 0.1, max_iters = 10)
+	sdr_full = STRidge(sdp_full, options = options_full)
+
+	sol_full_sindy = ODEProblem(sdr_full.odefun, [ics_full ; ics_full_v], tspan_full_test) |> solve
+	traj_full_sindy = [sol_full_sindy(t)[i] for t in times_full_test, i = 1:length(ics_full)]
+	nothing
+end
+
+# ╔═╡ fb79f103-ce0c-4bb9-b736-b75f8e823198
+sdp_full
+
+# ╔═╡ add2738b-5ab4-47ae-b977-a23709186423
+sdr_full.names
+
+# ╔═╡ 2076ae39-4f25-423f-bde1-c6e2fad0368e
+let
+	fig = Figure(size = (1000, 400))
+	ax = Axis(fig[1, 1], aspect = AxisAspect(2), xlabel = "time [days]", ylabel = "Position [km]")
+	labels = [L"x", L"y"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	colors = [:blue, :red]
+	for i = 1:size(traj_full_test, 2)
+	  lines!(ax, times_full_test, traj_full_test[:,i], label = labels[i], color = colors[i])
+	end
+	
+	for i = 1:size(traj_full_sindy, 2)
+	  lines!(ax, times_full_test, traj_full_sindy[:,i], linestyle = :dash, label = labels_sindy[i], color = colors[i])
+	end
+
+	Legend(fig[2,1], ax, orientation = :horizontal)
+
+	###
+
+	ax = Axis(fig[1, 2], aspect = AxisAspect(2), xlabel = L"x \,\, \text{[km]}", ylabel = L"y \,\, \text{[km]}")
+	labels = [L"xy(t)"]
+	labels_sindy = [L"x_\text{SINDy}", L"y_\text{SINDy}", L"z_\text{SINDy}"]
+	lines!(ax, traj_full_test[:,1], traj_full_test[:,2], label = "Fluid", color = :black)
+
+	lines!(ax, traj_full_sindy[:,1], traj_full_sindy[:,2], linestyle = :dash, label = "Fluid [SINDy]", color = :red)
+	
+	Legend(fig[2,2], ax, orientation = :horizontal)
+
+
+	Label(fig[3, :], "FULL LEARNED \n dx^2dt^2 = $(sdr_full.names[1]) \n dy^2dt^2 = $(sdr_full.names[2])", fontsize = 20)
+
+	fig
+end
+
+# ╔═╡ f9f6be75-3bd7-427e-b0cf-a49097f9467e
+function f_1!(du, u, p, t)
+	x, y, dxdt, dydt = u
+	du[1] = dxdt
+	du[2] = dydt
+	du[3] = -7.68*dxdt + 7.68*dydt + 7.68*vx(x, y, t) - 6.92*vy(x, y, t)
+	du[4] = -7.68*dxdt - 7.68*dydt + 6.92*vx(x, y, t) + 7.68*vy(x, y, t)
+	return nothing
+end
+
+# ╔═╡ 09edf393-a054-4a62-a30e-7adda152f63a
+function f_2!(du, u, p, t)
+	x, y, dxdt, dydt = u
+	du[1] = dxdt
+	du[2] = dydt
+	du[3] = -5.17*dxdt + 3.82*dydt + 5.11*vx(x, y, t) - 3.38*vy(x, y, t)
+	du[4] = -8.04*dxdt - 6.31*dydt + 7.32*vx(x, y, t) + 6.40*vy(x, y, t)
+	return nothing
+end
+
+# ╔═╡ 0c814347-6687-418e-a9bb-ec4ed3cc73af
+begin
+	tmax_p = 120.0
+	p1 = ODEProblem(f_1!, [ics_full ; ics_full_v], (0.0, tmax_p)) |> solve
+	p2 = ODEProblem(f_2!, [ics_full ; ics_full_v], (0.0, tmax_p)) |> solve
+	nothing
+end
+
+# ╔═╡ f15eab0d-6610-4c11-9e1b-55cb58d81e76
+let
+	fig = Figure()
+	ax = Axis(fig[1, 1])
+	lines!(ax, range(0, tmax_p, length = 100), t -> p1(t)[1], color = :red)
+	lines!(ax, range(0, tmax_p, length = 100), t -> p1(t)[2], color = :blue)
+	lines!(ax, range(0, tmax_p, length = 100), t -> p2(t)[1], color = :red, linestyle = :dash)
+	lines!(ax, range(0, tmax_p, length = 100), t -> p2(t)[2], color = :blue, linestyle = :dash)
+	fig
+end
+
+# ╔═╡ 122b89a4-cb27-4b7f-b69b-bbdccef7a21a
+p1.u
 
 # ╔═╡ 40bf79f6-585e-4d2a-a34b-58ef397a7053
 function sph2xy(lon::Real, lat::Real, eqr::EquirectangularReference)
@@ -3126,11 +3436,34 @@ version = "3.5.0+0"
 # ╠═0e51b25d-55d0-4c0d-b2fd-3e951329266f
 # ╠═bb5174ab-523e-4363-ba47-38d9c47f0de4
 # ╠═cd6228f3-8b1c-40e1-bda4-b62de5d9b483
-# ╠═9ee63a0b-a267-4236-94ab-9d80e4d46463
+# ╠═cdc5dab7-9cee-4c67-9c91-5c655e5f74c7
 # ╠═2d5dbfc0-a36a-4f15-8cf7-818295e69574
 # ╠═a83f6ace-ab88-461e-b95c-0d7f639c6e23
-# ╠═d5318f88-f4e2-476a-bee9-5b336fb3ae10
 # ╠═39aeb386-87e1-4879-8a07-3f63df733b3f
+# ╟─31b759e3-60fc-4c9a-aa7c-053906125d0b
+# ╠═7ffdd06a-1462-45a7-8b42-836db4a93aad
+# ╠═1343467c-5130-415a-92e7-97d433afae7d
+# ╠═d6973577-e873-44cd-8872-d829851022a8
+# ╠═49e46fcf-8c00-45bd-9b12-8751b56b6cc6
+# ╠═01962205-cb4f-4abd-a0cb-f1e0122efd1f
+# ╠═afe1e2e9-f5ae-4de4-81d0-fa304efa27c5
+# ╠═d34e7417-64be-4016-8da3-f6bd23c0acc8
+# ╠═a1b9b3d2-8215-43fa-9f38-5093aca361a0
+# ╟─8d8e2bdc-c35e-4332-884a-34bc49707ffa
+# ╠═49483d2c-a284-4643-8000-ef5d664b4e18
+# ╠═200dfd1a-0af8-4215-afae-4cf70d67813d
+# ╠═b1c5a547-a08f-41eb-b60a-e181435279fe
+# ╠═afa619a2-1383-4ceb-a8a7-7beab5ecaf17
+# ╠═d4bf9af8-abef-40cd-9319-1862c69b886f
+# ╠═fb79f103-ce0c-4bb9-b736-b75f8e823198
+# ╠═add2738b-5ab4-47ae-b977-a23709186423
+# ╠═2076ae39-4f25-423f-bde1-c6e2fad0368e
+# ╟─58b47ca8-fa19-44f0-922a-58ac71816eb4
+# ╠═f9f6be75-3bd7-427e-b0cf-a49097f9467e
+# ╠═09edf393-a054-4a62-a30e-7adda152f63a
+# ╠═0c814347-6687-418e-a9bb-ec4ed3cc73af
+# ╠═f15eab0d-6610-4c11-9e1b-55cb58d81e76
+# ╠═122b89a4-cb27-4b7f-b69b-bbdccef7a21a
 # ╟─788f628e-c77c-49a5-ac81-a527ede9cfbd
 # ╟─6ca5c925-621e-4d6f-a379-e20d4f7bc225
 # ╠═840cada2-6d5f-4bad-bee7-5faba2071a08
