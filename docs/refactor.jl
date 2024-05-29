@@ -867,9 +867,11 @@ end
 
 # ╔═╡ 0c814347-6687-418e-a9bb-ec4ed3cc73af
 begin
+	# ics_p = [ics_full ; ics_full_v]
+	ics_p = [ics_full .+ 100*rand() ; ics_full_v .+ rand()]
 	tmax_p = 120.0
-	p1 = ODEProblem(f_1!, [ics_full ; ics_full_v], (0.0, tmax_p)) |> solve
-	p2 = ODEProblem(f_2!, [ics_full ; ics_full_v], (0.0, tmax_p)) |> solve
+	p1 = ODEProblem(f_1!, ics_p, (0.0, tmax_p)) |> solve
+	p2 = ODEProblem(f_2!, ics_p, (0.0, tmax_p)) |> solve
 	nothing
 end
 
@@ -883,9 +885,6 @@ let
 	lines!(ax, range(0, tmax_p, length = 100), t -> p2(t)[2], color = :blue, linestyle = :dash)
 	fig
 end
-
-# ╔═╡ 122b89a4-cb27-4b7f-b69b-bbdccef7a21a
-p1.u
 
 # ╔═╡ 40bf79f6-585e-4d2a-a34b-58ef397a7053
 function sph2xy(lon::Real, lat::Real, eqr::EquirectangularReference)
@@ -3463,7 +3462,6 @@ version = "3.5.0+0"
 # ╠═09edf393-a054-4a62-a30e-7adda152f63a
 # ╠═0c814347-6687-418e-a9bb-ec4ed3cc73af
 # ╠═f15eab0d-6610-4c11-9e1b-55cb58d81e76
-# ╠═122b89a4-cb27-4b7f-b69b-bbdccef7a21a
 # ╟─788f628e-c77c-49a5-ac81-a527ede9cfbd
 # ╟─6ca5c925-621e-4d6f-a379-e20d4f7bc225
 # ╠═840cada2-6d5f-4bad-bee7-5faba2071a08
