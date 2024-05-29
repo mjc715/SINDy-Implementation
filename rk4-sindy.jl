@@ -1,38 +1,49 @@
-x = [1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144] # trajectory
+using CairoMakie
+
+h = 0.01
+x = [t^2 for t in range(0.0, 1.0, step = h)]
 X = x[1:end-1]
-ξ = stack([1.0, 0.0])
+ξ = [1.0, 1.0, 0.0]
 Φ = [
+    x -> x, 
     x -> x,
     x -> x .^ 2] # list of functions
 
 
-function XF(X, Φ, ξ)
-    # RK4 applied to our f(θ, xi), starting at x[1]
-    h = 1
-    Θ1 = stack([f(X) for f in Φ])
-    k1 = Θ1 * ξ
+function XF(X, Φ, ξ, h)
+    theta_1 = stack([f(X) for f in Φ])
+    k1 = theta_1 * ξ
     X1_tilde = X + (h / 2) * k1
 
-    Θ2 = stack([f(X1_tilde) for f in Φ])
-    k2 = (Θ2 * ξ)
-    X2_tilde = X1_tilde + (h / 2) * k2
+    theta_2 = stack([f(X1_tilde) for f in Φ])
+    k2 = theta_2 * ξ
+    X2_tilde = X + (h / 2) * k2
 
-    θ3 = stack([f(X2_tilde) for f in Φ])
-    k3 = θ3 * ξ
-    X3_tilde = X2_tilde + h * k3
+    theta_3 = stack([f(X2_tilde) for f in Φ])
+    k3 = theta_3 * ξ
+    X3_tilde = X + h * k3
 
-    θ4 = stack([f(X3_tilde) for f in Φ])
-    k4 = θ4 * ξ
-    X4_tilde = X3_tilde + (h / 6) * k4
+    theta_4 = stack([f(X3_tilde) for f in Φ])
+    k4 = theta_4 * ξ
 
-    Xf = X1_tilde * h / 6 + X2_tilde * h / 3 + X3_tilde * h / 3 + X4_tilde
+    X_f = X + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
 
-    return Xf
-
+    return X_f
 end
 
-println(XF(X, Φ, ξ))
-println()
+X_f = XF(X, Φ, ξ, h)
+
+println(X_f)
+println(X_f)
 println(x[2:end])
 
-# then compare XF to x[2:end]
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, X_f)
+lines!(ax, x[2:end])
+fig
+
+# minimize
+# https://docs.sciml.ai/Optimization/stable/getting_started/
+objective(ξ, α, Φ, h) = sum(abs2.(XF(x[1:end-1], Φ, ξ, h) - x[2:end])) + α*sum(abs.(ξ))
+objective(u, p) = objective(u[1:end-1], u[end], p[1], p[2])
