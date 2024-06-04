@@ -1,16 +1,6 @@
 using CairoMakie
 using Optimization
-using OptimizationOptimJL
-
-h = 0.01
-x = [t^2 for t in range(0.0, 1.0, step=h)]
-X = x[1:end-1]
-ξ = [0.0, 0.0]
-α = 1.0
-Φ = [
-    x -> x,
-    x -> x .^ 2] # list of functions
-
+using OptimizationOptimJL, OptimizationBBO
 
 function XF(X, Φ, ξ, h)
     theta_1 = stack([f(X) for f in Φ])
@@ -33,11 +23,16 @@ function XF(X, Φ, ξ, h)
     return X_f
 end
 
-X_f = XF(X, Φ, ξ, h)
+h = 0.01
+x = [t^2 for t in range(0.0, 1.0, step=h)]
+ξ0 = [2.0, 0.0]
+α0 = 1.0
+Φ = [
+    x -> x,
+    x -> x .^ 2] # list of functions
 
-# println(X_f)
-# println(X_f)
-# println(x[2:end])
+# X_f = XF(x[1:end-1], Φ, ξ0, h)
+# @info "Simple error = $(sum(abs2.(X_f - x[2:end])))"
 
 fig = Figure()
 ax = Axis(fig[1, 1])
@@ -47,12 +42,14 @@ fig
 
 # minimize
 # https://docs.sciml.ai/Optimization/stable/getting_started/
-objective(ξ, α, Φ, h) = sum(abs2.(XF(x[1:end-1], Φ, ξ, h) - x[2:end])) + α * sum(abs.(ξ))
-objective(u0, p) = objective(u0[1:end-1], u0[end], p[1], p[2])
+objective(ξ, α, X, Φ, h) = sum(abs2.(XF(X[1:end-1], Φ, ξ, h) - X[2:end])) + abs(α * sum(abs.(ξ)))
+optfun(u, ps) = objective(u[1:end-1], u[end], ps[1], ps[2], ps[3])
 
-u0 = [0.0, 0.0, α]
-p = [Φ, h]
+u0 = [rand(), rand(), α0]
+p = (x, Φ, h)
 
-prob = OptimizationProblem(objective, u, p)
-sol = solve(prob, NelderMead())
+prob = OptimizationProblem(optfun, u0, p, lb = fill(-10.0, length(u0)), ub = fill(10.0, length(u0)))
+sol = solve(prob, BBO_adaptive_de_rand_1_bin_radiuslimited())
 
+sol.objective # smallest value of optfun
+sol.u # optimal [ξ1, ξ2, α]
