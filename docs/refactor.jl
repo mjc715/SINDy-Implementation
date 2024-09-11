@@ -1606,9 +1606,9 @@ uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 version = "1.0.4"
 
 [[deps.EnzymeCore]]
-git-tree-sha1 = "3a3177ba05b4763234819060fb6c2e1613379ca6"
+git-tree-sha1 = "d445df66dd8761a4c27df950db89c6a3a0629fe7"
 uuid = "f151be2c-9106-41f4-ab19-57ee4f262869"
-version = "0.7.6"
+version = "0.7.7"
 weakdeps = ["Adapt"]
 
     [deps.EnzymeCore.extensions]
@@ -2766,9 +2766,9 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[deps.ProgressMeter]]
 deps = ["Distributed", "Printf"]
-git-tree-sha1 = "763a8ceb07833dd51bb9e3bbca372de32c0605ad"
+git-tree-sha1 = "80686d28ecb3ee7fb3ac5371cacaa0d673eb0d4a"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.PtrArrays]]
 git-tree-sha1 = "f011fbb92c4d401059b2212c05c0601b70f8b759"
@@ -3104,9 +3104,9 @@ version = "0.1.1"
 
 [[deps.Static]]
 deps = ["CommonWorldInvalidations", "IfElse", "PrecompileTools"]
-git-tree-sha1 = "0bbff21027dd8a107551847528127b62a35f7594"
+git-tree-sha1 = "87d51a3ee9a4b0d2fe054bdd3fc2436258db2603"
 uuid = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
-version = "1.1.0"
+version = "1.1.1"
 
 [[deps.StaticArrayInterface]]
 deps = ["ArrayInterface", "Compat", "IfElse", "LinearAlgebra", "PrecompileTools", "Requires", "SparseArrays", "Static", "SuiteSparse"]
